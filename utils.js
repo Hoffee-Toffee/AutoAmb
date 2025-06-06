@@ -100,8 +100,8 @@ export function interpolateIntensity(layerData, intensity) {
     .map(Number)
     .sort((a, b) => a - b)
   const lowerKey =
-    intensityKeys.find((key) => key <= intensity) || intensityKeys[0]
-  const upperKey = intensityKeys.find((key) => key > intensity) || lowerKey
+    intensityKeys.find((key) => key <= intensity) ?? intensityKeys[0]
+  const upperKey = intensityKeys.find((key) => key > intensity) ?? lowerKey
   const weight =
     lowerKey === upperKey ? 0 : (intensity - lowerKey) / (upperKey - lowerKey)
   return { lowerKey, upperKey, weight }
@@ -110,7 +110,7 @@ export function interpolateIntensity(layerData, intensity) {
 export function calculateChancesAndCounts(
   layerName,
   layerData,
-  weight,
+  intensity,
   lowerKey,
   upperKey
 ) {
@@ -119,25 +119,29 @@ export function calculateChancesAndCounts(
   const scaledChances = {}
   const counts = {}
 
+  // Calculate weight for interpolation based on intensity
+  const weight =
+    lowerKey === upperKey ? 0 : (intensity - lowerKey) / (upperKey - lowerKey)
+
   for (const set of sets) {
     const chanceKey = `${set}_chance`
-    let chance =
-      (1 - weight) *
-        (layerData.intensity[lowerKey][chanceKey] ||
-          layerData.intensity[lowerKey].chance) +
-      weight *
-        (layerData.intensity[upperKey][chanceKey] ||
-          layerData.intensity[upperKey].chance)
-    chance = Math.max(
-      layerName !== 'breath' && set === 'solo' ? 0.2 : 0,
-      chance
-    )
+    const lowerChance =
+      layerData.intensity[lowerKey][chanceKey] ??
+      layerData.intensity[lowerKey].chance ??
+      layerData.chance
+    const upperChance =
+      layerData.intensity[upperKey][chanceKey] ??
+      layerData.intensity[upperKey].chance ??
+      layerData.chance
+
+    const chance = (1 - weight) * lowerChance + weight * upperChance
+
     chances[chanceKey] = chance
     scaledChances[`scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`] =
       chance * (config.scheduleGranularity / config.chanceUnit)
 
     if (layerData.tightness === 0) {
-      counts[`${set}Events`] = 0 // Handled in generateTimelineEvents for deterministic scheduling
+      counts[`${set}Events`] = 0 // Handled in generateTimelineEvents
     } else {
       const stdDev = Math.sqrt(
         scaledChances[
@@ -174,4 +178,20 @@ export function calculateChancesAndCounts(
   }
 
   return { chances, scaledChances, counts }
+}
+
+export function generatePosition() {
+  return {
+    pan: gaussianClamp(0.5, 0.25) * (Math.random() < 0.5 ? -1 : 1),
+    dist: gaussianClamp(0.75, 0.25),
+  }
+}
+
+function gaussianClamp(mean, sigma) {
+  // Pick a random number between 0 and 1, using the Box-Muller method
+  const u = Math.random()
+  const v = Math.random()
+  const x = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)
+  const raw = mean + x * sigma
+  return Math.min(1, Math.max(0, raw))
 }

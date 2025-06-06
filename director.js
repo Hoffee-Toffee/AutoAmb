@@ -7,6 +7,7 @@ import {
   getIntensityForLayer,
   interpolateIntensity,
   calculateChancesAndCounts,
+  generatePosition,
 } from './utils.js'
 import { generateTimelineEvents } from './scheduler.js'
 import { processChunk, concatenateChunks } from './processor.js'
@@ -25,9 +26,12 @@ async function generateSoundscape() {
       return acc
     }, {})
     let lastBreathWasIn = false
+    const sharedPositions = {}
 
     for (const [layerName, layerData] of Object.entries(layers)) {
       filesData[layerName] = await loadAudioFiles(layerName, layerData)
+      if (layerName.directionality === 'shared')
+        sharedPositions[layerName] = generatePosition()
     }
 
     const subBlocks = Math.floor(config.duration / config.scheduleGranularity)
@@ -48,7 +52,6 @@ async function generateSoundscape() {
           layerName,
           layerData,
           intensity,
-          weight,
           lowerKey,
           upperKey
         )
@@ -74,7 +77,10 @@ async function generateSoundscape() {
           intensity,
           volume,
           counts,
-          chunkCounts
+          chunkCounts,
+          filesData[layerName].durations,
+          scaledChances,
+          sharedPositions[layerName]
         )
 
         timeline.push(...events)
