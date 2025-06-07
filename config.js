@@ -41,8 +41,8 @@ export const layers = {
       // asphyx: 'isac_vx_breath_asphyxiation_hlmt01_\\d{2}.ogg',
     },
     intensity: {
-      0: { volume: 2, chance: 1 / 4 },
-      2: { volume: 3, chance: 1 / 2.5 },
+      0: { volume: 2, chance: 1 / 3 },
+      // 2: { volume: 3, chance: 1 / 2.5 },
       // 1: { volume: 2, chance: 1 / 4, asphyx_chance: 0 },
       // 1.5: { volume: 2, chance: 1 / 2.5 },
       // 2: { volume: 3, chance: 0, asphyx_chance: 1 / 2 },
@@ -50,6 +50,7 @@ export const layers = {
     tightness: 0,
     directionality: 'none',
     offset: 1,
+    cycleThrough: 'sets',
   },
   // room: {
   //   category: 'amb',

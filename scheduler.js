@@ -8,7 +8,7 @@ export function generateTimelineEvents(
   validFiles,
   playCounts,
   lastPlayedFiles,
-  lastBreathWasIn,
+  setIndex,
   subBlockStartTime,
   intensity,
   volume,
@@ -19,13 +19,11 @@ export function generateTimelineEvents(
   sharedPosition
 ) {
   const events = []
-  let breathToggled = false
+  let setToggled = false
 
   const sets =
-    layerName === 'breath'
-      ? Object.keys(layerData.sets).filter(
-          (set) => set === (lastBreathWasIn ? 'out' : 'in')
-        )
+    layerData.cycleThrough === 'sets'
+      ? [Object.keys(layerData.sets)[setIndex]]
       : Object.keys(layerData.sets)
 
   if (layerData.tightness === 0) {
@@ -75,8 +73,8 @@ export function generateTimelineEvents(
           chunkCounts[layerName][chunkIndex]++
         }
 
-        if (layerName === 'breath') {
-          breathToggled = true
+        if (layerData.cycleThrough === 'sets') {
+          setToggled = true
         }
       }
     }
@@ -122,11 +120,11 @@ export function generateTimelineEvents(
           }
         }
       }
-      if (layerName === 'breath' && N > 0) {
-        breathToggled = true
+      if (layerData.cycleThrough === 'sets' && N > 0) {
+        setToggled = true
       }
     }
   }
 
-  return { events, breathToggled }
+  return { events, setToggled }
 }

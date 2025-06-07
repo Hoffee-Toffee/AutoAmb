@@ -25,8 +25,11 @@ async function generateSoundscape() {
       ).fill(0)
       return acc
     }, {})
-    let lastBreathWasIn = false
     const sharedPositions = {}
+    const setIndices = Object.keys(layers).reduce((acc, layer) => {
+      acc[layer] = 0
+      return acc
+    }, {})
 
     for (const [layerName, layerData] of Object.entries(layers)) {
       filesData[layerName] = await loadAudioFiles(layerName, layerData)
@@ -66,13 +69,13 @@ async function generateSoundscape() {
           ...counts,
         })
 
-        const { events, breathToggled } = generateTimelineEvents(
+        const { events, setToggled } = generateTimelineEvents(
           layerName,
           layerData,
           filesData[layerName].validFiles,
           filesData[layerName].playCounts,
           filesData[layerName].lastPlayedFiles,
-          lastBreathWasIn,
+          setIndices[layerName],
           subBlockStartTime,
           intensity,
           volume,
@@ -84,8 +87,10 @@ async function generateSoundscape() {
         )
 
         timeline.push(...events)
-        if (layerName === 'breath' && breathToggled) {
-          lastBreathWasIn = !lastBreathWasIn
+
+        if (layerData.cycleThrough === 'sets' && setToggled) {
+          setIndices[layerName] =
+            (setIndices[layerName] + 1) % Object.keys(layerData.sets).length
         }
       }
     }
@@ -118,7 +123,11 @@ async function generateSoundscape() {
       )
 
       console.log(`Processing chunk ${i} with ${chunkEvents.length} events`)
-      const { tempFile, timelineLog: chunkTimelineLog, nextChunkEvents } = await processChunk(
+      const {
+        tempFile,
+        timelineLog: chunkTimelineLog,
+        nextChunkEvents,
+      } = await processChunk(
         i,
         chunkEvents,
         chunkStartTime,
