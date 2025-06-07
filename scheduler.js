@@ -23,14 +23,12 @@ export function generateTimelineEvents(
 
   const sets =
     layerName === 'breath'
-      ? [lastBreathWasIn ? 'out' : 'in', 'asphyx']
+      ? Object.keys(layerData.sets).filter(
+          (set) => set === (lastBreathWasIn ? 'out' : 'in')
+        )
       : Object.keys(layerData.sets)
 
   if (layerData.tightness === 0) {
-    const sets =
-      layerName === 'breath'
-        ? [lastBreathWasIn ? 'out' : 'in', 'asphyx']
-        : Object.keys(layerData.sets)
     for (const set of sets) {
       const scaledChance =
         scaledChances[
@@ -52,6 +50,10 @@ export function generateTimelineEvents(
           playCounts[set],
           lastPlayedFiles[set]
         )
+        if (!randomFile) {
+          console.warn(`No file selected for ${layerName} set ${set}`)
+          continue
+        }
         const fileIndex = validFiles[set].indexOf(randomFile)
         playCounts[set][fileIndex] = (playCounts[set][fileIndex] || 0) + 1
         lastPlayedFiles[set] = randomFile
@@ -95,6 +97,10 @@ export function generateTimelineEvents(
             playCounts[set],
             lastPlayedFiles[set]
           )
+          if (!randomFile) {
+            console.warn(`No file selected for ${layerName} set ${set}`)
+            continue
+          }
           const fileIndex = validFiles[set].indexOf(randomFile)
           playCounts[set][fileIndex] = (playCounts[set][fileIndex] || 0) + 1
           lastPlayedFiles[set] = randomFile

@@ -3,6 +3,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { config } from './config.js'
+import { getAudioDuration, getAudioChannels } from './utils.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -10,19 +11,37 @@ export async function processChunk(
   chunkIndex,
   chunkEvents,
   chunkStartTime,
-  chunkEndTime
+  chunkEndTime,
+  carryOverEvents = []
 ) {
   const tempFile = path.join(__dirname, `temp_chunk_${chunkIndex}.mp3`)
   const actualChunkDuration = chunkEndTime - chunkStartTime
+  const nextChunkEvents = []
 
-  if (chunkEvents.length > 0) {
+  const allEvents = [...carryOverEvents, ...chunkEvents]
+
+  if (allEvents.length > 0) {
     const ff = ffmpeg()
     const eventTimes = []
     const timelineLog = []
 
-    chunkEvents.forEach((event, index) => {
+    for (const event of allEvents) {
+      const duration = event.duration ?? (await getAudioDuration(event.file))
+      const delay = Math.max(0, (event.start - chunkStartTime) + (event.offset || 0))
+      const eventEndTime = event.start + duration - (event.offset || 0)
+
+      if (eventEndTime > chunkEndTime) {
+        nextChunkEvents.push({
+          ...event,
+          offset: (event.offset || 0) + (chunkEndTime - event.start),
+          start: chunkEndTime,
+        })
+      }
+
       ff.input(event.file)
-      const delay = Math.max(0, event.start - chunkStartTime)
+      if (event.offset) {
+        ff.inputOptions([`-ss ${event.offset.toFixed(3)}`])
+      }
       eventTimes.push(delay)
       timelineLog.push({
         chunk: chunkIndex,
@@ -35,37 +54,67 @@ export async function processChunk(
         layer: event.layer,
         pan: event.pan,
         dist: event.dist,
+        offset: event.offset || 0,
+        duration,
       })
-    })
+    }
 
-    const filters = eventTimes
-      .map((time, index) => {
-        const event = chunkEvents[index]
+    const filters = await Promise.all(
+      eventTimes.map(async (time, index) => {
+        const event = allEvents[index]
+        const channels = await getAudioChannels(event.file)
         const leftGain = event.pan !== undefined ? (1 - event.pan) / 2 : 0.5
         const rightGain = event.pan !== undefined ? (1 + event.pan) / 2 : 0.5
+        let preprocessFilter = ''
+        let lastLabel = `${index}:a`
+
+        // Preprocess based on channel layout
+        if (channels === 'quad') {
+          // Downmix quad to stereo using pan filter
+          preprocessFilter = `pan=stereo|c0=c0+c2|c1=c1+c3[a${index}_pre]`
+          lastLabel = `a${index}_pre`
+        } else if (channels === 'mono') {
+          // Convert mono to stereo
+          preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
+          lastLabel = `a${index}_pre`
+        } else if (channels !== 'stereo') {
+          // Fallback for other layouts
+          preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
+          lastLabel = `a${index}_pre`
+        }
+
+        const formatFilter = `aformat=channel_layouts=stereo[a${index}_fmt]`
         const panFilter =
           event.pan !== undefined
-            ? `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(
-                3
-              )}*c0`
+            ? `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(3)}*c1[a${index}_pan]`
             : ''
         const volumeFilter = `volume=${(
           event.volume * (event.dist ?? 1)
-        ).toFixed(3)}`
+        ).toFixed(3)}[a${index}]`
         const delayFilter = `adelay=${Math.round(time * 1000)}|${Math.round(
           time * 1000
-        )}`
-        return `[${index}:a]${delayFilter}${
-          panFilter ? ',' + panFilter : ''
-        },${volumeFilter}[a${index}]`
-      })
-      .join(';')
+        )}[a${index}_delay]`
 
+        const chain = [
+          preprocessFilter ? `[${index}:a]${preprocessFilter}` : '',
+          `[${preprocessFilter ? `a${index}_pre` : `${index}:a`}]${formatFilter}`,
+          `[a${index}_fmt]${delayFilter}`,
+          `[a${index}_delay]${panFilter || volumeFilter}`,
+          panFilter ? `[a${index}_pan]${volumeFilter}` : '',
+        ]
+          .filter(Boolean)
+          .join(';')
+
+        return chain
+      })
+    )
+
+    const filterChain = filters.join(';')
     const mix =
       eventTimes.map((_, index) => `[a${index}]`).join('') +
       `amix=inputs=${eventTimes.length}:duration=longest[amixed]`
     const finalVolume = `[amixed]volume=1[a]`
-    const filterComplex = [filters, mix, finalVolume].join(';')
+    const filterComplex = [filterChain, mix, finalVolume].join(';')
 
     await new Promise((resolve, reject) => {
       ff.inputOptions('-guess_layout_max 0')
@@ -79,7 +128,7 @@ export async function processChunk(
             console.log(
               `Chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
-            resolve(timelineLog)
+            resolve({ tempFile: path.relative(__dirname, tempFile), timelineLog, nextChunkEvents })
           } catch (err) {
             reject(err)
           }
@@ -92,7 +141,7 @@ export async function processChunk(
         .run()
     })
 
-    return { tempFile: path.relative(__dirname, tempFile), timelineLog }
+    return { tempFile: path.relative(__dirname, tempFile), timelineLog, nextChunkEvents }
   } else {
     await new Promise((resolve, reject) => {
       ffmpeg()
@@ -107,7 +156,7 @@ export async function processChunk(
             console.log(
               `Empty chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
-            resolve([])
+            resolve({ tempFile: path.relative(__dirname, tempFile), timelineLog: [], nextChunkEvents: [] })
           } catch (err) {
             reject(err)
           }
@@ -122,7 +171,7 @@ export async function processChunk(
         .run()
     })
 
-    return { tempFile: path.relative(__dirname, tempFile), timelineLog: [] }
+    return { tempFile: path.relative(__dirname, tempFile), timelineLog: [], nextChunkEvents: [] }
   }
 }
 

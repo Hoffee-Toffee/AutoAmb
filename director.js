@@ -30,7 +30,7 @@ async function generateSoundscape() {
 
     for (const [layerName, layerData] of Object.entries(layers)) {
       filesData[layerName] = await loadAudioFiles(layerName, layerData)
-      if (layerName.directionality === 'shared')
+      if (layerData.directionality === 'shared')
         sharedPositions[layerName] = generatePosition()
     }
 
@@ -100,6 +100,7 @@ async function generateSoundscape() {
     const tempFiles = []
     const timelineLog = []
     const totalChunks = Math.ceil(config.duration / config.chunkDuration)
+    let carryOverEvents = []
 
     for (let i = 0; i < totalChunks; i++) {
       const chunkStartTime = i * config.chunkDuration
@@ -117,14 +118,16 @@ async function generateSoundscape() {
       )
 
       console.log(`Processing chunk ${i} with ${chunkEvents.length} events`)
-      const { tempFile, timelineLog: chunkTimelineLog } = await processChunk(
+      const { tempFile, timelineLog: chunkTimelineLog, nextChunkEvents } = await processChunk(
         i,
         chunkEvents,
         chunkStartTime,
-        chunkEndTime
+        chunkEndTime,
+        carryOverEvents
       )
       tempFiles.push(tempFile)
       timelineLog.push(...chunkTimelineLog)
+      carryOverEvents = nextChunkEvents
     }
 
     await fs.writeFile(
