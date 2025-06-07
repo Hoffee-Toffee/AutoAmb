@@ -8,10 +8,11 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path)
 export const config = {
   audioDir: 'C:\\Users\\Admin\\Music\\Amb Cats',
   outputFile: 'output.mp3',
-  duration: 300,
+  duration: 60 * 2,
   chunkDuration: 30,
   scheduleGranularity: 0.1,
   chanceUnit: 1,
+  volume: 10,
 }
 
 export const layers = {

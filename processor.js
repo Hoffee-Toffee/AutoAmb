@@ -17,7 +17,6 @@ export async function processChunk(
   const tempFile = path.join(__dirname, `temp_chunk_${chunkIndex}.mp3`)
   const actualChunkDuration = chunkEndTime - chunkStartTime
   const nextChunkEvents = []
-
   const allEvents = [...carryOverEvents, ...chunkEvents]
 
   if (allEvents.length > 0) {
@@ -27,13 +26,18 @@ export async function processChunk(
 
     for (const event of allEvents) {
       const duration = event.duration ?? (await getAudioDuration(event.file))
-      const delay = Math.max(0, (event.start - chunkStartTime) + (event.offset || 0))
+      const delay =
+        event.start === chunkStartTime
+          ? 0
+          : Math.max(0, event.start - chunkStartTime + (event.offset || 0))
       const eventEndTime = event.start + duration - (event.offset || 0)
 
       if (eventEndTime > chunkEndTime) {
+        const durationInCurrentChunk =
+          chunkEndTime - event.start + (event.offset || 0)
         nextChunkEvents.push({
           ...event,
-          offset: (event.offset || 0) + (chunkEndTime - event.start),
+          offset: (event.offset || 0) + durationInCurrentChunk,
           start: chunkEndTime,
         })
       }
@@ -46,7 +50,7 @@ export async function processChunk(
       timelineLog.push({
         chunk: chunkIndex,
         startTime: event.start,
-        volume: event.volume,
+        volume: event.volume * config.volume,
         filename: event.filename,
         playCount: event.playCount,
         delay: delay * 1000,
@@ -68,17 +72,13 @@ export async function processChunk(
         let preprocessFilter = ''
         let lastLabel = `${index}:a`
 
-        // Preprocess based on channel layout
         if (channels === 'quad') {
-          // Downmix quad to stereo using pan filter
           preprocessFilter = `pan=stereo|c0=c0+c2|c1=c1+c3[a${index}_pre]`
           lastLabel = `a${index}_pre`
         } else if (channels === 'mono') {
-          // Convert mono to stereo
           preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
           lastLabel = `a${index}_pre`
         } else if (channels !== 'stereo') {
-          // Fallback for other layouts
           preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
           lastLabel = `a${index}_pre`
         }
@@ -86,10 +86,14 @@ export async function processChunk(
         const formatFilter = `aformat=channel_layouts=stereo[a${index}_fmt]`
         const panFilter =
           event.pan !== undefined
-            ? `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(3)}*c1[a${index}_pan]`
+            ? `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(
+                3
+              )}*c1[a${index}_pan]`
             : ''
         const volumeFilter = `volume=${(
-          event.volume * (event.dist ?? 1)
+          event.volume *
+          config.volume *
+          (event.dist ?? 1)
         ).toFixed(3)}[a${index}]`
         const delayFilter = `adelay=${Math.round(time * 1000)}|${Math.round(
           time * 1000
@@ -97,7 +101,9 @@ export async function processChunk(
 
         const chain = [
           preprocessFilter ? `[${index}:a]${preprocessFilter}` : '',
-          `[${preprocessFilter ? `a${index}_pre` : `${index}:a`}]${formatFilter}`,
+          `[${
+            preprocessFilter ? `a${index}_pre` : `${index}:a`
+          }]${formatFilter}`,
           `[a${index}_fmt]${delayFilter}`,
           `[a${index}_delay]${panFilter || volumeFilter}`,
           panFilter ? `[a${index}_pan]${volumeFilter}` : '',
@@ -113,7 +119,7 @@ export async function processChunk(
     const mix =
       eventTimes.map((_, index) => `[a${index}]`).join('') +
       `amix=inputs=${eventTimes.length}:duration=longest[amixed]`
-    const finalVolume = `[amixed]volume=1[a]`
+    const finalVolume = `[amixed]volume=${config.volume}[a]`
     const filterComplex = [filterChain, mix, finalVolume].join(';')
 
     await new Promise((resolve, reject) => {
@@ -128,7 +134,11 @@ export async function processChunk(
             console.log(
               `Chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
-            resolve({ tempFile: path.relative(__dirname, tempFile), timelineLog, nextChunkEvents })
+            resolve({
+              tempFile: path.relative(__dirname, tempFile),
+              timelineLog,
+              nextChunkEvents,
+            })
           } catch (err) {
             reject(err)
           }
@@ -141,7 +151,11 @@ export async function processChunk(
         .run()
     })
 
-    return { tempFile: path.relative(__dirname, tempFile), timelineLog, nextChunkEvents }
+    return {
+      tempFile: path.relative(__dirname, tempFile),
+      timelineLog,
+      nextChunkEvents,
+    }
   } else {
     await new Promise((resolve, reject) => {
       ffmpeg()
@@ -156,7 +170,11 @@ export async function processChunk(
             console.log(
               `Empty chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
-            resolve({ tempFile: path.relative(__dirname, tempFile), timelineLog: [], nextChunkEvents: [] })
+            resolve({
+              tempFile: path.relative(__dirname, tempFile),
+              timelineLog: [],
+              nextChunkEvents: [],
+            })
           } catch (err) {
             reject(err)
           }
@@ -171,7 +189,11 @@ export async function processChunk(
         .run()
     })
 
-    return { tempFile: path.relative(__dirname, tempFile), timelineLog: [], nextChunkEvents: [] }
+    return {
+      tempFile: path.relative(__dirname, tempFile),
+      timelineLog: [],
+      nextChunkEvents: [],
+    }
   }
 }
 
