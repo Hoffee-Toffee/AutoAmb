@@ -19,6 +19,7 @@ async function generateSoundscape() {
     const filesData = {}
     const intensityLog = []
     let timeline = []
+    const lastEventEndTimes = {}
     const chunkCounts = Object.keys(layers).reduce((acc, layer) => {
       acc[layer] = Array(
         Math.ceil(config.duration / config.chunkDuration)
@@ -35,6 +36,9 @@ async function generateSoundscape() {
       filesData[layerName] = await loadAudioFiles(layerName, layerData)
       if (layerData.directionality === 'shared')
         sharedPositions[layerName] = generatePosition()
+      if (layerData.bufferBetweenSounds) {
+        lastEventEndTimes[layerName] = {}
+      }
     }
 
     const subBlocks = Math.floor(config.duration / config.scheduleGranularity)
@@ -84,7 +88,9 @@ async function generateSoundscape() {
           chunkCounts,
           filesData[layerName].durations,
           scaledFrequencies,
-          sharedPositions[layerName]
+          sharedPositions[layerName],
+          frequencies, // directSetFrequencies
+          lastEventEndTimes
         )
 
         timeline.push(...events)

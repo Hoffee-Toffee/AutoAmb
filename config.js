@@ -41,8 +41,9 @@ export const layers = {
       // asphyx: 'isac_vx_breath_asphyxiation_hlmt01_\\d{2}.ogg',
     },
     intensity: {
-      0: { volume: 2, frequency: 1 / 3 },
-      // 2: { volume: 3, frequency: 1 / 2.5 },
+      0: { volume: 2, frequency: 1 / 2 },
+      1: { volume: 2.5, frequency: 1 },
+      2: { volume: 3, frequency: 2 },
       // 1: { volume: 2, frequency: 1 / 4, asphyx_frequency: 0 },
       // 1.5: { volume: 2, frequency: 1 / 2.5 },
       // 2: { volume: 3, frequency: 0, asphyx_frequency: 1 / 2 },
@@ -50,7 +51,7 @@ export const layers = {
     variance: 0,
     directionality: 'none',
     cycleThrough: 'sets',
-    //
+    bufferBetweenSounds: true,
   },
   // room: {
   //   category: 'amb',
@@ -96,15 +97,16 @@ export const layers = {
   // },
   annc: {
     category: 'npc',
-    volume: 1,
+    volume: 2,
     sets: {
       files: 'audio_pa_03_\\d{2}.exa.ogg',
     },
     intensity: {
-      0: { volume: 0.25, frequency: 1 / 25 },
+      0: { volume: 0.25, frequency: 1 },
     },
     variance: 0,
-    directionality: 'shared',
+    // directionality: 'shared',
     cycleThrough: 'files',
+    bufferBetweenSounds: true,
   },
 }
