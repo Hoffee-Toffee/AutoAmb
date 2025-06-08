@@ -55,11 +55,23 @@ export function poissonRandom(lambda) {
   return Math.max(0, k - 1) + (Math.random() < lambda ? 1 : 0)
 }
 
-export function weightedRandomFile(files, playCounts, lastPlayed) {
+export function selectFile(
+  files,
+  playCounts,
+  lastPlayed,
+  cycleFiles,
+  setIndex
+) {
   if (!files || files.length === 0) {
-    console.warn('No valid files provided to weightedRandomFile')
+    console.warn('No valid files provided to selectFile')
     return null
   }
+
+  if (cycleFiles) return files[setIndex]
+  return weightedRandomFile(files, playCounts, lastPlayed)
+}
+
+export function weightedRandomFile(files, playCounts, lastPlayed) {
   const weights = files.map((file, index) => {
     if (file === lastPlayed) return 0
     return 1 / (1 + (playCounts[index] || 0))

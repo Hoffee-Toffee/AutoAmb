@@ -88,10 +88,20 @@ async function generateSoundscape() {
 
         timeline.push(...events)
 
-        if (layerData.cycleThrough === 'sets' && setToggled) {
-          setIndices[layerName] =
-            (setIndices[layerName] + 1) % Object.keys(layerData.sets).length
-        }
+        if (setToggled)
+          switch (layerData.cycleThrough) {
+            case 'sets':
+              setIndices[layerName] =
+                (setIndices[layerName] + 1) % Object.keys(layerData.sets).length
+              break
+            case 'files':
+              // Sum the number of files across all sets for this layer
+              const totalFiles = Object.values(
+                filesData[layerName].validFiles
+              ).reduce((sum, files) => sum + files.length, 0)
+              setIndices[layerName] = (setIndices[layerName] + 1) % totalFiles
+              break
+          }
       }
     }
 

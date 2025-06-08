@@ -82,16 +82,29 @@ export const layers = {
     tightness: 0.5,
     directionality: 'unique',
   },
+  // annc: {
+  //   category: 'sfx',
+  //   volume: 0.25,
+  //   sets: {
+  //     norm: 'audio_pa_02_04.exa.ogg',
+  //   },
+  //   intensity: {
+  //     0: { volume: 0.25, chance: 1 / 45 },
+  //   },
+  //   tightness: 0,
+  //   directionality: 'shared',
+  // },
   annc: {
-    category: 'sfx',
+    category: 'npc',
     volume: 0.25,
     sets: {
-      norm: 'audio_pa_02_04.exa.ogg',
+      files: 'audio_pa_03_\\d{2}.exa.ogg',
     },
     intensity: {
       0: { volume: 0.25, chance: 1 / 45 },
     },
     tightness: 0,
     directionality: 'shared',
+    cycleThrough: 'files',
   },
 }

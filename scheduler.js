@@ -1,5 +1,5 @@
 import { config } from './config.js'
-import { generatePosition, weightedRandomFile } from './utils.js'
+import { generatePosition, selectFile } from './utils.js'
 import path from 'path'
 
 export function generateTimelineEvents(
@@ -43,22 +43,24 @@ export function generateTimelineEvents(
           config.scheduleGranularity / 2 &&
         eventTime <= config.duration
       ) {
-        const randomFile = weightedRandomFile(
+        const selectedFile = selectFile(
           validFiles[set],
           playCounts[set],
-          lastPlayedFiles[set]
+          lastPlayedFiles[set],
+          layerData.cycleThrough === 'files',
+          setIndex
         )
-        if (!randomFile) {
+        if (!selectedFile) {
           console.warn(`No file selected for ${layerName} set ${set}`)
           continue
         }
-        const fileIndex = validFiles[set].indexOf(randomFile)
+        const fileIndex = validFiles[set].indexOf(selectedFile)
         playCounts[set][fileIndex] = (playCounts[set][fileIndex] || 0) + 1
-        lastPlayedFiles[set] = randomFile
+        lastPlayedFiles[set] = selectedFile
 
         events.push({
-          file: path.join(config.audioDir, layerData.category, randomFile),
-          filename: randomFile,
+          file: path.join(config.audioDir, layerData.category, selectedFile),
+          filename: selectedFile,
           start: eventTime,
           duration: durations[set][fileIndex],
           volume,
@@ -73,7 +75,7 @@ export function generateTimelineEvents(
           chunkCounts[layerName][chunkIndex]++
         }
 
-        if (layerData.cycleThrough === 'sets') {
+        if (['sets', 'files'].includes(layerData.cycleThrough)) {
           setToggled = true
         }
       }
@@ -90,22 +92,24 @@ export function generateTimelineEvents(
             : sharedPosition ?? {}
 
         if (eventTime <= config.duration) {
-          const randomFile = weightedRandomFile(
+          const selectedFile = selectFile(
             validFiles[set],
             playCounts[set],
-            lastPlayedFiles[set]
+            lastPlayedFiles[set],
+            layerData.cycleThrough === 'files',
+            setIndex
           )
-          if (!randomFile) {
+          if (!selectedFile) {
             console.warn(`No file selected for ${layerName} set ${set}`)
             continue
           }
-          const fileIndex = validFiles[set].indexOf(randomFile)
+          const fileIndex = validFiles[set].indexOf(selectedFile)
           playCounts[set][fileIndex] = (playCounts[set][fileIndex] || 0) + 1
-          lastPlayedFiles[set] = randomFile
+          lastPlayedFiles[set] = selectedFile
 
           events.push({
-            file: path.join(config.audioDir, layerData.category, randomFile),
-            filename: randomFile,
+            file: path.join(config.audioDir, layerData.category, selectedFile),
+            filename: selectedFile,
             start: eventTime,
             volume,
             playCount: playCounts[set][fileIndex],
@@ -120,7 +124,7 @@ export function generateTimelineEvents(
           }
         }
       }
-      if (layerData.cycleThrough === 'sets' && N > 0) {
+      if (['sets', 'files'].includes(layerData.cycleThrough) && N > 0) {
         setToggled = true
       }
     }
