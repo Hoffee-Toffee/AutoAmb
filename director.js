@@ -6,7 +6,7 @@ import {
   loadAudioFiles,
   getIntensityForLayer,
   interpolateIntensity,
-  calculateChancesAndCounts,
+  calculateFrequenciesAndCounts,
   generatePosition,
 } from './utils.js'
 import { generateTimelineEvents } from './scheduler.js'
@@ -51,21 +51,22 @@ async function generateSoundscape() {
         const volume =
           (1 - weight) * layerData.intensity[lowerKey].volume +
           weight * layerData.intensity[upperKey].volume
-        const { chances, scaledChances, counts } = calculateChancesAndCounts(
-          layerName,
-          layerData,
-          intensity,
-          lowerKey,
-          upperKey
-        )
+        const { frequencies, scaledFrequencies, counts } =
+          calculateFrequenciesAndCounts(
+            layerName,
+            layerData,
+            intensity,
+            lowerKey,
+            upperKey
+          )
 
         intensityLog.push({
           subBlock: i,
           time: subBlockStartTime,
           layer: layerName,
           intensity,
-          ...chances,
-          ...scaledChances,
+          ...frequencies,
+          ...scaledFrequencies,
           ...counts,
         })
 
@@ -82,7 +83,7 @@ async function generateSoundscape() {
           counts,
           chunkCounts,
           filesData[layerName].durations,
-          scaledChances,
+          scaledFrequencies,
           sharedPositions[layerName]
         )
 

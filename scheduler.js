@@ -15,7 +15,7 @@ export function generateTimelineEvents(
   counts,
   chunkCounts,
   durations,
-  scaledChances,
+  scaledFrequencies,
   sharedPosition
 ) {
   const events = []
@@ -26,13 +26,13 @@ export function generateTimelineEvents(
       ? [Object.keys(layerData.sets)[setIndex]]
       : Object.keys(layerData.sets)
 
-  if (layerData.tightness === 0) {
+  if (layerData.variance === 0) {
     for (const set of sets) {
-      const scaledChance =
-        scaledChances[
-          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`
+      const scaledFrequency =
+        scaledFrequencies[
+          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
         ]
-      const interval = 1 / (scaledChance / config.scheduleGranularity) // Seconds between events
+      const interval = 1 / (scaledFrequency / config.scheduleGranularity) // Seconds between events
       const eventTime = Math.round(subBlockStartTime / interval) * interval
       const position =
         layerData.directionality === 'unique'

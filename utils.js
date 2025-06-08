@@ -192,7 +192,7 @@ export function interpolateIntensity(layerData, intensity) {
   return { lowerKey, upperKey, weight }
 }
 
-export function calculateChancesAndCounts(
+export function calculateFrequenciesAndCounts(
   layerName,
   layerData,
   intensity,
@@ -200,60 +200,61 @@ export function calculateChancesAndCounts(
   upperKey
 ) {
   const sets = Object.keys(layerData.sets)
-  const chances = {}
-  const scaledChances = {}
+  const frequencies = {}
+  const scaledFrequencies = {}
   const counts = {}
 
   const weight =
     lowerKey === upperKey ? 0 : (intensity - lowerKey) / (upperKey - lowerKey)
 
   for (const set of sets) {
-    const chanceKey = `${set}_chance`
-    const lowerChance =
-      layerData.intensity[lowerKey][chanceKey] ??
-      layerData.intensity[lowerKey].chance ??
-      layerData.chance
-    const upperChance =
-      layerData.intensity[upperKey][chanceKey] ??
-      layerData.intensity[upperKey].chance ??
-      layerData.chance
+    const frequencyKey = `${set}_frequency`
+    const lowerFrequency =
+      layerData.intensity[lowerKey][frequencyKey] ??
+      layerData.intensity[lowerKey].frequency ??
+      layerData.frequency
+    const upperFrequency =
+      layerData.intensity[upperKey][frequencyKey] ??
+      layerData.intensity[upperKey].frequency ??
+      layerData.frequency
 
-    const chance = (1 - weight) * lowerChance + weight * upperChance
+    const frequency = (1 - weight) * lowerFrequency + weight * upperFrequency
 
-    chances[set] = chance
-    scaledChances[`scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`] =
-      chance * (config.scheduleGranularity / config.chanceUnit)
+    frequencies[set] = frequency
+    scaledFrequencies[
+      `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
+    ] = frequency * (config.scheduleGranularity / config.frequencyUnit)
 
-    if (layerData.tightness === 0) {
+    if (layerData.variance === 0) {
       counts[`${set}Events`] = 0
     } else {
       const stdDev = Math.sqrt(
-        scaledChances[
-          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`
+        scaledFrequencies[
+          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
         ]
       )
       const minEvents = Math.max(
         0,
         Math.floor(
-          scaledChances[
-            `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`
+          scaledFrequencies[
+            `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
           ] -
-            layerData.tightness * stdDev
+            layerData.variance * stdDev
         )
       )
       const maxEvents = Math.ceil(
-        scaledChances[
-          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`
+        scaledFrequencies[
+          `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
         ] +
-          layerData.tightness * stdDev
+          layerData.variance * stdDev
       )
       counts[`${set}Events`] = Math.min(
         maxEvents,
         Math.max(
           minEvents,
           poissonRandom(
-            scaledChances[
-              `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Chance`
+            scaledFrequencies[
+              `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
             ]
           )
         )
@@ -261,7 +262,7 @@ export function calculateChancesAndCounts(
     }
   }
 
-  return { chances, scaledChances, counts }
+  return { frequencies, scaledFrequencies, counts }
 }
 
 export function generatePosition() {
