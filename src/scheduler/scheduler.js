@@ -1,5 +1,5 @@
-import { config } from './config.js'
-import { generatePosition, selectFile } from './utils.js'
+import { config } from '../config.js'
+import { generatePosition, selectFile } from '../utils.js'
 import path from 'path'
 
 export function generateTimelineEvents(

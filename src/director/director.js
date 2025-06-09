@@ -1,16 +1,16 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { config, layers } from './config.js'
+import { config, layers } from '../config.js'
 import {
   loadAudioFiles,
   getIntensityForLayer,
   interpolateIntensity,
   calculateFrequenciesAndCounts,
   generatePosition,
-} from './utils.js'
-import { generateTimelineEvents } from './scheduler.js'
-import { processChunk, concatenateChunks } from './processor.js'
+} from '../utils.js'
+import { generateTimelineEvents } from '../scheduler/scheduler.js'
+import { processChunk, concatenateChunks } from '../processor/processor.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -115,7 +115,7 @@ async function generateSoundscape() {
     console.log('Event counts per chunk (before processing):', chunkCounts)
     timeline.sort((a, b) => a.start - b.start)
     await fs.writeFile(
-      path.join(__dirname, 'intensity_log.json'),
+      path.join(__dirname, '../../out/intensity_log.json'),
       JSON.stringify(intensityLog, null, 2)
     )
 
@@ -157,7 +157,7 @@ async function generateSoundscape() {
     }
 
     await fs.writeFile(
-      path.join(__dirname, 'timeline_log.json'),
+      path.join(__dirname, '../../out/timeline_log.json'),
       JSON.stringify(timelineLog, null, 2)
     )
     console.log(`Concatenating ${tempFiles.length} chunks`)
@@ -165,7 +165,7 @@ async function generateSoundscape() {
 
     for (const tempFile of tempFiles) {
       await fs
-        .unlink(path.join(__dirname, tempFile))
+        .unlink(tempFile)
         .catch((err) =>
           console.warn(`Failed to delete ${tempFile}: ${err.message}`)
         )

@@ -8,7 +8,7 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path)
 export const config = {
   audioDir: 'C:\\Users\\Admin\\Music\\Amb Cats',
   outputFile: 'output.mp3',
-  duration: 60 * 2,
+  duration: 60 * 3,
   chunkDuration: 30,
   scheduleGranularity: 0.1,
   frequencyUnit: 1,
@@ -34,16 +34,16 @@ export const layers = {
   },
   breath: {
     category: 'isc',
-    volume: 1,
+    volume: 0.5,
     sets: {
       in: 'isac_vx_breathing_hlmt01_(0[0-4]).ogg',
       out: 'isac_vx_breathing_hlmt01_(0[5-9]).ogg',
       // asphyx: 'isac_vx_breath_asphyxiation_hlmt01_\\d{2}.ogg',
     },
     intensity: {
-      0: { volume: 2, frequency: 1 / 2 },
-      1: { volume: 2.5, frequency: 1 },
-      2: { volume: 3, frequency: 2 },
+      0: { volume: 1, frequency: 1 / 2 },
+      1: { volume: 1, frequency: 1 },
+      2: { volume: 1.5, frequency: 2 },
       // 1: { volume: 2, frequency: 1 / 4, asphyx_frequency: 0 },
       // 1.5: { volume: 2, frequency: 1 / 2.5 },
       // 2: { volume: 3, frequency: 0, asphyx_frequency: 1 / 2 },
@@ -102,7 +102,7 @@ export const layers = {
       files: 'audio_pa_03_\\d{2}.exa.ogg',
     },
     intensity: {
-      0: { volume: 0.25, frequency: 1 },
+      0: { volume: 0.25, frequency: 1 / 2 },
     },
     variance: 0,
     // directionality: 'shared',

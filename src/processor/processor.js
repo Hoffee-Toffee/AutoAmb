@@ -2,10 +2,21 @@ import ffmpeg from 'fluent-ffmpeg'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { config } from './config.js'
-import { getAudioDuration, getAudioChannels } from './utils.js'
+import { config } from '../config.js'
+import { getAudioDuration, getAudioChannels } from '../utils.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Ensure the output directory exists
+const outputDir = path.join(__dirname, '../../out')
+async function ensureOutputDir() {
+  try {
+    await fs.mkdir(outputDir, { recursive: true })
+  } catch (err) {
+    console.error(`Failed to create output directory: ${err.message}`)
+    throw err
+  }
+}
 
 export async function processChunk(
   chunkIndex,
@@ -14,7 +25,8 @@ export async function processChunk(
   chunkEndTime,
   carryOverEvents = []
 ) {
-  const tempFile = path.join(__dirname, `temp_chunk_${chunkIndex}.mp3`)
+  await ensureOutputDir() // Ensure output directory exists
+  const tempFile = path.join(outputDir, `temp_chunk_${chunkIndex}.mp3`)
   const actualChunkDuration = chunkEndTime - chunkStartTime
   const nextChunkEvents = []
   const allEvents = [...carryOverEvents, ...chunkEvents]
@@ -135,7 +147,7 @@ export async function processChunk(
               `Chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
             resolve({
-              tempFile: path.relative(__dirname, tempFile),
+              tempFile, // Return absolute path
               timelineLog,
               nextChunkEvents,
             })
@@ -152,11 +164,12 @@ export async function processChunk(
     })
 
     return {
-      tempFile: path.relative(__dirname, tempFile),
+      tempFile, // Return absolute path
       timelineLog,
       nextChunkEvents,
     }
   } else {
+    await ensureOutputDir() // Ensure output directory exists
     await new Promise((resolve, reject) => {
       ffmpeg()
         .input('anullsrc=r=44100:cl=stereo')
@@ -171,7 +184,7 @@ export async function processChunk(
               `Empty chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
             )
             resolve({
-              tempFile: path.relative(__dirname, tempFile),
+              tempFile, // Return absolute path
               timelineLog: [],
               nextChunkEvents: [],
             })
@@ -190,7 +203,7 @@ export async function processChunk(
     })
 
     return {
-      tempFile: path.relative(__dirname, tempFile),
+      tempFile, // Return absolute path
       timelineLog: [],
       nextChunkEvents: [],
     }
@@ -198,16 +211,28 @@ export async function processChunk(
 }
 
 export async function concatenateChunks(tempFiles) {
+  await ensureOutputDir() // Ensure output directory exists
+  const outputFile = path.join(outputDir, config.outputFile)
+
+  // Verify that all tempFiles exist
+  for (const file of tempFiles) {
+    try {
+      await fs.access(file)
+    } catch (err) {
+      throw new Error(`Temporary file not found: ${file}`)
+    }
+  }
+
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(`concat:${tempFiles.join('|')}`)
       .outputOptions(['-c copy', '-ar 44100', '-ac 2'])
-      .output(path.join(__dirname, config.outputFile))
+      .output(outputFile)
       .on('end', async () => {
         try {
-          const stats = await fs.stat(path.join(__dirname, config.outputFile))
+          const stats = await fs.stat(outputFile)
           console.log(
-            `Concatenation complete: ${config.outputFile}, size: ${stats.size} bytes`
+            `Concatenation complete: ${outputFile}, size: ${stats.size} bytes`
           )
           resolve()
         } catch (err) {
