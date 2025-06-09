@@ -31,6 +31,7 @@ export const layers = {
     },
     variance: 0.1,
     directionality: 'unique',
+    pitchSpeedRange: [0.9, 1.1],
   },
   breath: {
     category: 'isc',
@@ -82,6 +83,7 @@ export const layers = {
     },
     variance: 0.5,
     directionality: 'unique',
+    pitchSpeedRange: [0.9, 1.1],
   },
   // annc: {
   //   category: 'sfx',

@@ -111,26 +111,57 @@ export async function processChunk(
           time * 1000
         )}[a${index}_delay]`
 
-        const chain = [
-          preprocessFilter ? `[${index}:a]${preprocessFilter}` : '',
-          `[${
-            preprocessFilter ? `a${index}_pre` : `${index}:a`
-          }]${formatFilter}`,
-          `[a${index}_fmt]${delayFilter}`,
-          `[a${index}_delay]${panFilter || volumeFilter}`,
-          panFilter ? `[a${index}_pan]${volumeFilter}` : '',
-        ]
-          .filter(Boolean)
-          .join(';')
+        let currentInputLabel = `a${index}_delay`
+        const chainParts = []
 
-        return chain
+        // Preprocessing
+        if (preprocessFilter) {
+          chainParts.push(`[${index}:a]${preprocessFilter}`)
+          currentInputLabel = `a${index}_pre`
+        } else {
+          currentInputLabel = `${index}:a` // No preprocessing, input is original stream
+        }
+
+        // Format filter
+        chainParts.push(`[${currentInputLabel}]${formatFilter}`)
+        currentInputLabel = `a${index}_fmt`
+
+        // Delay filter
+        chainParts.push(`[${currentInputLabel}]${delayFilter}`)
+        currentInputLabel = `a${index}_delay`
+
+        // Pan filter
+        if (panFilter) {
+          chainParts.push(`[${currentInputLabel}]${panFilter}`)
+          currentInputLabel = `a${index}_pan`
+        }
+
+        // Pitch and speed adjustment using asetrate and atempo
+        if (event.pitchSpeedFactor && event.pitchSpeedFactor !== 1) {
+          // Adjust pitch by changing sample rate
+          const pitchFactor = event.pitchSpeedFactor
+          const sampleRate = 44100 * pitchFactor
+          const pitchFilter = `asetrate=${sampleRate.toFixed(0)}[a${index}_pitch]`
+          chainParts.push(`[${currentInputLabel}]${pitchFilter}`)
+          currentInputLabel = `a${index}_pitch`
+
+          // Adjust tempo to compensate for sample rate change
+          const tempoFilter = `atempo=${(1 / pitchFactor).toFixed(3)}[a${index}_tempo]`
+          chainParts.push(`[${currentInputLabel}]${tempoFilter}`)
+          currentInputLabel = `a${index}_tempo`
+        }
+
+        // Volume filter (applies to the output of the previous filter)
+        chainParts.push(`[${currentInputLabel}]${volumeFilter}`)
+        // The final output label of this event's chain is a${index} as defined in volumeFilter
+
+        return chainParts.filter(Boolean).join(';')
       })
     )
 
     const filterChain = filters.join(';')
-    const mix =
-      eventTimes.map((_, index) => `[a${index}]`).join('') +
-      `amix=inputs=${eventTimes.length}:duration=longest[amixed]`
+    const mixInputs = eventTimes.map((_, index) => `[a${index}]`).join('')
+    const mix = `${mixInputs}amix=inputs=${eventTimes.length}:duration=longest[amixed]`
     const finalVolume = `[amixed]volume=${config.volume}[a]`
     const filterComplex = [filterChain, mix, finalVolume].join(';')
 

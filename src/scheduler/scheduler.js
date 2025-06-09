@@ -103,7 +103,7 @@ export function generateTimelineEvents(
                   layerData.directionality === 'unique'
                     ? generatePosition()
                     : sharedPosition ?? {}
-                events.push({
+                const event = {
                   file: path.join(
                     config.audioDir,
                     layerData.category,
@@ -121,7 +121,15 @@ export function generateTimelineEvents(
                   set: currentSetForScheduling, // Log the actual set the file came from
                   layer: layerName,
                   ...position,
-                })
+                }
+                if (layerData.pitchSpeedRange) {
+                  event.pitchSpeedFactor =
+                    Math.random() *
+                      (layerData.pitchSpeedRange[1] -
+                        layerData.pitchSpeedRange[0]) +
+                    layerData.pitchSpeedRange[0]
+                }
+                events.push(event)
                 lastPlayedFiles[currentSetForScheduling] = selectedFile // Update last played for the specific set
 
                 const chunkIndex = Math.floor(
@@ -190,7 +198,7 @@ export function generateTimelineEvents(
                 layerData.directionality === 'unique'
                   ? generatePosition()
                   : sharedPosition ?? {}
-              events.push({
+              const event = {
                 file: path.join(
                   config.audioDir,
                   layerData.category,
@@ -205,7 +213,15 @@ export function generateTimelineEvents(
                 set,
                 layer: layerName,
                 ...position,
-              })
+              }
+              if (layerData.pitchSpeedRange) {
+                event.pitchSpeedFactor =
+                  Math.random() *
+                    (layerData.pitchSpeedRange[1] -
+                      layerData.pitchSpeedRange[0]) +
+                  layerData.pitchSpeedRange[0]
+              }
+              events.push(event)
               lastPlayedFiles[set] = selectedFile
               const chunkIndex = Math.floor(
                 potentialNextEventStartTime / config.chunkDuration
@@ -276,7 +292,7 @@ export function generateTimelineEvents(
             layerData.directionality === 'unique'
               ? generatePosition()
               : sharedPosition ?? {}
-          events.push({
+          const event = {
             file: path.join(config.audioDir, layerData.category, selectedFile),
             filename: selectedFile,
             start: eventTime,
@@ -287,7 +303,14 @@ export function generateTimelineEvents(
             set,
             layer: layerName,
             ...position,
-          })
+          }
+          if (layerData.pitchSpeedRange) {
+            event.pitchSpeedFactor =
+              Math.random() *
+                (layerData.pitchSpeedRange[1] - layerData.pitchSpeedRange[0]) +
+              layerData.pitchSpeedRange[0]
+          }
+          events.push(event)
           lastPlayedFiles[set] = selectedFile
           const chunkIndex = Math.floor(eventTime / config.chunkDuration)
           if (chunkIndex < chunkCounts[layerName].length)
@@ -334,7 +357,7 @@ export function generateTimelineEvents(
             layerData.directionality === 'unique'
               ? generatePosition()
               : sharedPosition ?? {}
-          events.push({
+          const event = {
             file: path.join(config.audioDir, layerData.category, selectedFile),
             filename: selectedFile,
             start: eventTime,
@@ -345,7 +368,14 @@ export function generateTimelineEvents(
             set,
             layer: layerName,
             ...position,
-          })
+          }
+          if (layerData.pitchSpeedRange) {
+            event.pitchSpeedFactor =
+              Math.random() *
+                (layerData.pitchSpeedRange[1] - layerData.pitchSpeedRange[0]) +
+              layerData.pitchSpeedRange[0]
+          }
+          events.push(event)
           lastPlayedFiles[set] = selectedFile
           const chunkIndex = Math.floor(eventTime / config.chunkDuration)
           if (chunkIndex < chunkCounts[layerName].length)
