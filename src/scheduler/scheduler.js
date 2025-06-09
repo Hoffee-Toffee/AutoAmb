@@ -64,90 +64,89 @@ export function generateTimelineEvents(
       } else {
         const frequencyForCurrentSet =
           directSetFrequencies[currentSetForScheduling]
-        if (frequencyForCurrentSet <= 0) {
-          // console.warn(`Frequency for ${layerName} set ${currentSetForScheduling} (cycling) is zero or negative. Skipping.`);
-        } else {
+        let potentialNextEventStartTime = currentGlobalLastEventEndTime
+
+        if (frequencyForCurrentSet > 0) {
           const baseInterval = 1.0 / frequencyForCurrentSet
           const varianceFactor = layerData.variance * (Math.random() * 2 - 1)
           let actualInterval = baseInterval * (1 + varianceFactor)
           if (actualInterval <= 0) actualInterval = baseInterval // Ensure positive interval
+          potentialNextEventStartTime += actualInterval
+        }
+        // If frequency is 0, use currentGlobalLastEventEndTime directly for gapless playback
 
-          const potentialNextEventStartTime =
-            currentGlobalLastEventEndTime + actualInterval
+        if (
+          potentialNextEventStartTime < config.duration &&
+          potentialNextEventStartTime >= subBlockStartTime &&
+          potentialNextEventStartTime <
+            subBlockStartTime + config.scheduleGranularity
+        ) {
+          const selectedFile = selectFile(
+            validFiles[currentSetForScheduling],
+            playCounts[currentSetForScheduling],
+            lastPlayedFiles[currentSetForScheduling],
+            layerData.cycleThrough === 'files',
+            layerData.cycleThrough === 'files' ? setIndex : 0
+          )
 
-          if (
-            potentialNextEventStartTime < config.duration &&
-            potentialNextEventStartTime >= subBlockStartTime &&
-            potentialNextEventStartTime <
-              subBlockStartTime + config.scheduleGranularity
-          ) {
-            const selectedFile = selectFile(
-              validFiles[currentSetForScheduling],
-              playCounts[currentSetForScheduling],
-              lastPlayedFiles[currentSetForScheduling],
-              layerData.cycleThrough === 'files',
-              layerData.cycleThrough === 'files' ? setIndex : 0 // Pass global setIndex for file cycling, 0 for set cycling (as file is chosen from the single active set)
-            )
+          if (selectedFile) {
+            const fileIndexInItsSet =
+              validFiles[currentSetForScheduling].indexOf(selectedFile)
+            const eventDuration =
+              durations[currentSetForScheduling][fileIndexInItsSet]
 
-            if (selectedFile) {
-              const fileIndexInItsSet =
-                validFiles[currentSetForScheduling].indexOf(selectedFile)
-              const eventDuration =
-                durations[currentSetForScheduling][fileIndexInItsSet]
-
-              if (
-                potentialNextEventStartTime + eventDuration <=
-                config.duration
-              ) {
-                const position =
-                  layerData.directionality === 'unique'
-                    ? generatePosition()
-                    : sharedPosition ?? {}
-                const event = {
-                  file: path.join(
-                    config.audioDir,
-                    layerData.category,
-                    selectedFile
-                  ),
-                  filename: selectedFile,
-                  start: potentialNextEventStartTime,
-                  duration: eventDuration,
-                  volume,
-                  playCount: (playCounts[currentSetForScheduling][
-                    fileIndexInItsSet
-                  ] =
-                    (playCounts[currentSetForScheduling][fileIndexInItsSet] ||
-                      0) + 1),
-                  set: currentSetForScheduling, // Log the actual set the file came from
-                  layer: layerName,
-                  ...position,
-                }
-                if (layerData.pitchSpeedRange) {
-                  event.pitchSpeedFactor =
-                    Math.random() *
-                      (layerData.pitchSpeedRange[1] -
-                        layerData.pitchSpeedRange[0]) +
-                    layerData.pitchSpeedRange[0]
-                }
-                events.push(event)
-                lastPlayedFiles[currentSetForScheduling] = selectedFile // Update last played for the specific set
-
-                const chunkIndex = Math.floor(
-                  potentialNextEventStartTime / config.chunkDuration
-                )
-                if (chunkIndex < chunkCounts[layerName].length)
-                  chunkCounts[layerName][chunkIndex]++
-
-                setToggled = true // Event scheduled
-                lastEventEndTimes[layerName][cycleTrackerKey] =
-                  potentialNextEventStartTime + eventDuration // Update global timer
+            if (
+              potentialNextEventStartTime + eventDuration <=
+              config.duration
+            ) {
+              const position =
+                layerData.directionality === 'unique'
+                  ? generatePosition()
+                  : sharedPosition ?? {}
+              const event = {
+                file: path.join(
+                  config.audioDir,
+                  layerData.category,
+                  selectedFile
+                ),
+                filename: selectedFile,
+                start: potentialNextEventStartTime,
+                duration: eventDuration,
+                volume,
+                playCount: (playCounts[currentSetForScheduling][
+                  fileIndexInItsSet
+                ] =
+                  (playCounts[currentSetForScheduling][fileIndexInItsSet] ||
+                    0) + 1),
+                set: currentSetForScheduling,
+                layer: layerName,
+                ...position,
               }
+              if (layerData.pitchSpeedRange) {
+                event.pitchSpeedFactor =
+                  Math.random() *
+                    (layerData.pitchSpeedRange[1] -
+                      layerData.pitchSpeedRange[0]) +
+                  layerData.pitchSpeedRange[0]
+              }
+              events.push(event)
+              lastPlayedFiles[currentSetForScheduling] = selectedFile
+
+              const chunkIndex = Math.floor(
+                potentialNextEventStartTime / config.chunkDuration
+              )
+              if (chunkIndex < chunkCounts[layerName].length)
+                chunkCounts[layerName][chunkIndex]++
+
+              setToggled = true
+              lastEventEndTimes[layerName][cycleTrackerKey] =
+                potentialNextEventStartTime + eventDuration
             }
           }
         }
       }
     } else {
-      // No layer-level cycling (e.g. cycleThrough 'none'), but bufferBetweenSounds is true (per-set buffering)
+      // No layer-level cycling, but bufferBetweenSounds is true (per-set buffering)
       const setsForPerSetBuffering = Object.keys(layerData.sets)
       for (const set of setsForPerSetBuffering) {
         if (!lastEventEndTimes[layerName]) lastEventEndTimes[layerName] = {}
@@ -162,15 +161,16 @@ export function generateTimelineEvents(
         }
         const setFrequency = directSetFrequencies[set]
 
-        if (setFrequency <= 0) continue
+        let potentialNextEventStartTime = currentSetLastEventEndTime
 
-        const baseInterval = 1.0 / setFrequency
-        const varianceFactor = layerData.variance * (Math.random() * 2 - 1)
-        let actualInterval = baseInterval * (1 + varianceFactor)
-        if (actualInterval <= 0) actualInterval = baseInterval
-
-        const potentialNextEventStartTime =
-          currentSetLastEventEndTime + actualInterval
+        if (setFrequency > 0) {
+          const baseInterval = 1.0 / setFrequency
+          const varianceFactor = layerData.variance * (Math.random() * 2 - 1)
+          let actualInterval = baseInterval * (1 + varianceFactor)
+          if (actualInterval <= 0) actualInterval = baseInterval
+          potentialNextEventStartTime += actualInterval
+        }
+        // If frequency is 0, use currentSetLastEventEndTime directly for gapless playback
 
         if (
           potentialNextEventStartTime < config.duration &&
@@ -182,8 +182,8 @@ export function generateTimelineEvents(
             validFiles[set],
             playCounts[set],
             lastPlayedFiles[set],
-            false, // isFileCycling is false here, as this branch is not layer-level file cycling
-            0 // setIndex for file selection within this set (usually 0, selectFile handles its own logic if not file cycling)
+            false,
+            0
           )
 
           if (selectedFile) {
@@ -229,16 +229,16 @@ export function generateTimelineEvents(
               if (chunkIndex < chunkCounts[layerName].length)
                 chunkCounts[layerName][chunkIndex]++
 
-              setToggled = true // Event scheduled
+              setToggled = true
               lastEventEndTimes[layerName][set] =
-                potentialNextEventStartTime + eventDuration // Update this set's timer
+                potentialNextEventStartTime + eventDuration
             }
           }
         }
       }
     }
   } else {
-    // bufferBetweenSounds is false - existing logic (copied from previous state, ensure it's what we want)
+    // bufferBetweenSounds is false - existing logic (unchanged)
     const setsToProcessNonBuffered =
       layerData.cycleThrough === 'sets'
         ? [Object.keys(layerData.sets)[setIndex]]
@@ -350,8 +350,8 @@ export function generateTimelineEvents(
           const fileIndex = validFiles[set].indexOf(selectedFile)
           if (!durations[set] || durations[set][fileIndex] === undefined)
             continue
-          const eventDuration = durations[set][fileIndex] // Get duration
-          if (eventTime + eventDuration > config.duration) continue // Check if event exceeds total duration
+          const eventDuration = durations[set][fileIndex]
+          if (eventTime + eventDuration > config.duration) continue
 
           const position =
             layerData.directionality === 'unique'
@@ -361,7 +361,7 @@ export function generateTimelineEvents(
             file: path.join(config.audioDir, layerData.category, selectedFile),
             filename: selectedFile,
             start: eventTime,
-            duration: eventDuration, // Include duration in the event
+            duration: eventDuration,
             volume,
             playCount: (playCounts[set][fileIndex] =
               (playCounts[set][fileIndex] || 0) + 1),
