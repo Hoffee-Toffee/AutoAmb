@@ -1,13 +1,14 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import ffmpeg from 'fluent-ffmpeg'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
-import ffprobeInstaller from '@ffprobe-installer/ffprobe'
+// import ffmpeg from 'fluent-ffmpeg'; // Removed
+// import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'; // Removed
+// import ffprobeInstaller from '@ffprobe-installer/ffprobe'; // Removed
 import mainConfig from './config.js'
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path)
-ffmpeg.setFfprobePath(ffprobeInstaller.path)
+// These are no longer needed as ffmpegCliUtil.js handles paths directly
+// ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 import { loadAudioFiles, generatePosition } from './utils/audio.js'
 import {

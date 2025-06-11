@@ -1,44 +1,37 @@
 // Audio processing utility functions
 import { promises as fs } from 'fs'
 import path from 'path'
-import ffmpeg from 'fluent-ffmpeg'
+// import ffmpeg from 'fluent-ffmpeg'; // Removed
+import {
+  getAudioDuration as getAudioDurationCli,
+  getAudioChannels as getAudioChannelsCli,
+  validateAudioFile as validateAudioFileCli
+} from './ffmpegCliUtil.js';
 import { gaussianClamp } from './math.js'
 
 export async function getAudioDuration(filePath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        console.warn(`Failed to get duration for ${filePath}: ${err.message}`)
-        return resolve(0) // Default to 0 if duration can't be determined
-      }
-      const duration = metadata.format.duration || 0
-      if (duration <= 0) {
-        console.warn(`Invalid duration (${duration}) for ${filePath}`)
-      }
-      resolve(duration)
-    })
-  })
+  try {
+    const duration = await getAudioDurationCli(filePath);
+    if (duration <= 0) {
+      console.warn(`Invalid duration (${duration}) for ${filePath} from CLI util.`);
+      return 0; // Default to 0 as per original behavior
+    }
+    return duration;
+  } catch (err) {
+    console.warn(`Failed to get duration for ${filePath} using CLI util: ${err.message}`);
+    return 0; // Default to 0 as per original behavior
+  }
 }
 
 export async function getAudioChannels(filePath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        console.warn(`Failed to get channels for ${filePath}: ${err.message}`)
-        return resolve('unknown')
-      }
-      const channels = metadata.streams[0]?.channels || 'unknown'
-      const channelLayout =
-        channels === 1
-          ? 'mono'
-          : channels === 2
-          ? 'stereo'
-          : channels === 4
-          ? 'quad'
-          : 'other'
-      resolve(channelLayout)
-    })
-  })
+  try {
+    // The CLI util already maps to 'mono', 'stereo', 'quad', 'other'
+    const channelLayout = await getAudioChannelsCli(filePath);
+    return channelLayout;
+  } catch (err) {
+    console.warn(`Failed to get channels for ${filePath} using CLI util: ${err.message}`);
+    return 'unknown'; // Default to 'unknown' as per original behavior
+  }
 }
 
 export function weightedRandomFile(files, playCounts, lastPlayed) {
@@ -83,19 +76,19 @@ export function selectFile(
 
 export async function validateAudioFile(filePath) {
   try {
-    await new Promise((resolve, reject) => {
-      ffmpeg()
-        .input(filePath)
-        .outputOptions('-f null')
-        .output('-')
-        .on('end', resolve)
-        .on('error', reject)
-        .run()
-    })
-    return true
+    const isValid = await validateAudioFileCli(filePath);
+    if (!isValid) {
+      // ffmpegCliUtil.validateAudioFile already resolves false for invalid files.
+      // It doesn't throw an error for invalid files, only for spawn/execution issues.
+      // So, if it resolves to false, we log it here as per original behavior.
+      console.warn(`Validation failed for ${filePath} (as reported by CLI util).`);
+    }
+    return isValid;
   } catch (error) {
-    console.warn(`Validation failed for ${filePath}: ${error.message}`)
-    return false
+    // This catch block would handle errors from ffmpegCliUtil if it *rejected*
+    // (e.g., ffprobe/ffmpeg not found, or a truly unexpected error).
+    console.warn(`Error during validation for ${filePath} with CLI util: ${error.message}`);
+    return false;
   }
 }
 
@@ -123,8 +116,8 @@ export async function loadAudioFiles(layerName, layerData, config) {
       durations[set] = []
       for (const file of setFiles) {
         const filePath = path.join(layerDir, file)
-        if (await validateAudioFile(filePath)) {
-          const duration = await getAudioDuration(filePath)
+        if (await validateAudioFile(filePath)) { // Now uses refactored validateAudioFile
+          const duration = await getAudioDuration(filePath) // Now uses refactored getAudioDuration
           if (duration > 0) {
             validFiles[set].push(file)
             durations[set].push(duration)

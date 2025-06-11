@@ -1,8 +1,9 @@
-import ffmpeg from 'fluent-ffmpeg'
+// import ffmpeg from 'fluent-ffmpeg'; // Removed
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { ensureOutputDir } from './chunkProcessor.js'
+import { concatenateFilesCli } from '../utils/ffmpegCliUtil.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outputDir = path.join(__dirname, '../../out')
@@ -35,38 +36,27 @@ export async function concatenateChunks(tempFiles, config) {
     return
   }
 
-  await new Promise((resolve, reject) => {
-    const command = ffmpeg()
+  const validTempFiles = tempFiles.filter((f) => f && typeof f === 'string');
+  if (validTempFiles.length === 0) {
+    console.error('No valid temporary files to concatenate after filtering.');
+    // Consider if this should throw an error or if returning is acceptable.
+    // Original code would have rejected a promise here.
+    throw new Error('No valid temporary files to concatenate.');
+  }
 
-    // Check if tempFiles are valid before adding to command
-    const validTempFiles = tempFiles.filter((f) => f && typeof f === 'string')
-    if (validTempFiles.length === 0) {
-      console.error('No valid temporary files to concatenate after filtering.')
-      return reject(new Error('No valid temporary files to concatenate.'))
-    }
-
-    command
-      .input(`concat:${validTempFiles.join('|')}`)
-      .outputOptions(['-c copy', '-ar 44100', '-ac 2'])
-      .output(outputFile)
-      .on('end', async () => {
-        try {
-          const stats = await fs.stat(outputFile)
-          console.log(
-            `Concatenation complete: ${outputFile}, size: ${stats.size} bytes`
-          )
-          resolve()
-        } catch (err) {
-          reject(err)
-        }
-      })
-      .on('error', (err, stdout, stderr) => {
-        console.error(`FFmpeg error during concatenation: ${err.message}`)
-        console.error(`FFmpeg input files: concat:${validTempFiles.join('|')}`)
-        console.error(`FFmpeg stdout: ${stdout}`)
-        console.error(`FFmpeg stderr: ${stderr}`)
-        reject(err)
-      })
-      .run()
-  })
+  try {
+    await concatenateFilesCli(
+      validTempFiles,
+      outputFile,
+      ['-c', 'copy', '-ar', '44100', '-ac', '2'] // Original output options
+    );
+    const stats = await fs.stat(outputFile);
+    console.log(
+      `Concatenation complete: ${outputFile}, size: ${stats.size} bytes`
+    );
+  } catch (error) {
+    // Error is already logged with details by concatenateFilesCli/spawnPromise
+    // console.error(`FFmpeg error during concatenation: ${error.message}`); // Redundant if already logged
+    throw error; // Rethrow to allow main process to handle if necessary
+  }
 }
