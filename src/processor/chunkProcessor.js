@@ -125,7 +125,8 @@ export async function generateFilterComplex(
     chainParts.push(`[${currentInputLabel}]volume=${volValue}[a${index}_volumed]`);
     currentInputLabel = `a${index}_volumed`;
 
-    const apadFilterString = `apad=whole_dur=${actualChunkDuration.toFixed(6)}s`;
+    const samplesForWholeDur = Math.round(actualChunkDuration * 44100); // Assuming 44100Hz sample rate
+    const apadFilterString = `apad=whole_len=${samplesForWholeDur}`;
     chainParts.push(`[${currentInputLabel}]${apadFilterString}[final_a${index}]`);
 
     return chainParts.filter(Boolean).join(';');
