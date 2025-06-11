@@ -1,150 +1,167 @@
-// import ffmpeg from 'fluent-ffmpeg'; // Removed
-import { promises as fs } from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { getAudioDuration, getAudioChannels } from '../utils/audio.js' // These will now use the CLI utils indirectly
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { getAudioDuration, getAudioChannels } from '../utils/audio.js';
 import { processAudioChunk as processAudioChunkCli } from '../utils/ffmpegCliUtil.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const outputDir = path.join(__dirname, '../../out')
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const outputDir = path.join(__dirname, '../../out');
 
 export async function ensureOutputDir() {
   try {
-    await fs.mkdir(outputDir, { recursive: true })
+    await fs.mkdir(outputDir, { recursive: true });
   } catch (err) {
-    console.error(`Failed to create output directory: ${err.message}`)
-    throw err
+    console.error(`Failed to create output directory: ${err.message}`);
+    throw err;
   }
 }
 
 export async function generateFilterComplex(
-  allEvents,
+  allEvents, // Should be eventsWithSourceDuration from processChunk
   chunkStartTime,
   config,
-  chunkIndex
+  chunkIndex,
+  actualChunkDuration
 ) {
-  const eventTimes = []
-  const timelineLogEntries = []
+  const timelineLogEntries = [];
+  const anullsrcDefinitions = [];
 
-  const filters = await Promise.all(
-    allEvents.map(async (event, index) => {
-      const duration = event.duration ?? (await getAudioDuration(event.file))
-      const delay =
-        event.start === chunkStartTime
-          ? 0
-          : Math.max(0, event.start - chunkStartTime + (event.offset || 0))
+  const eventFilterChainsPromises = allEvents.map(async (event, index) => {
+    // event.sourceFullDuration and event.sourceOffset are expected to be pre-calculated
+    const sourceFullDuration = event.sourceFullDuration;
+    const sourceOffsetForThisSegment = event.sourceOffset; // How much of the start of the source file to skip
 
-      eventTimes.push(delay)
-      timelineLogEntries.push({
-        chunk: chunkIndex,
-        startTime: event.start,
-        volume: event.volume * config.volume,
-        filename: event.filename,
-        playCount: event.playCount,
-        delay: delay * 1000,
-        set: event.set,
-        layer: event.layer,
-        pan: event.pan,
-        dist: event.dist,
-        offset: event.offset || 0,
-        duration,
-      })
+    const positioningDelay = event.start === chunkStartTime ? 0 : Math.max(0, event.start - chunkStartTime);
 
-      const channels = await getAudioChannels(event.file)
-      const leftGain = event.pan !== undefined ? (1 - event.pan) / 2 : 0.5
-      const rightGain = event.pan !== undefined ? (1 + event.pan) / 2 : 0.5
-      let preprocessFilter = ''
-      let lastLabel = `${index}:a`
+    // Duration of the source material available *after* considering its internal offset
+    const availableSourceMaterialDuration = sourceFullDuration - sourceOffsetForThisSegment;
 
-      if (channels === 'quad') {
-        preprocessFilter = `pan=stereo|c0=c0+c2|c1=c1+c3[a${index}_pre]`
-        lastLabel = `a${index}_pre`
-      } else if (channels === 'mono') {
-        preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
-        lastLabel = `a${index}_pre`
-      } else if (channels !== 'stereo') {
-        preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
-        lastLabel = `a${index}_pre`
-      }
+    // How much of this event can theoretically play in the current chunk's remaining time
+    const maxPlayableDurationInChunk = actualChunkDuration - positioningDelay;
 
-      const formatFilter = `aformat=channel_layouts=stereo[a${index}_fmt]`
-      const panFilter =
-        event.pan !== undefined
-          ? `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(
-              3
-            )}*c1[a${index}_pan]`
-          : ''
-      const volumeFilter = `volume=${(
-        event.volume *
-        config.volume *
-        (event.dist ?? 1)
-      ).toFixed(3)}[a${index}]`
-      const delayFilter = `adelay=${Math.round(delay * 1000)}|${Math.round(
-        delay * 1000
-      )}[a${index}_delay]`
+    // The actual duration to trim this event segment to for *this* chunk
+    // Ensure trimDuration is not negative if sourceOffset is greater than sourceFullDuration (should not happen with valid inputs for availableSourceMaterialDuration)
+    const trimDurationForChunk = Math.max(0.001, Math.min(Math.max(0, availableSourceMaterialDuration), maxPlayableDurationInChunk));
 
-      let currentInputLabel = `a${index}_delay`
-      const chainParts = []
+    timelineLogEntries.push({
+      chunk: chunkIndex,
+      startTime: event.start, // Original scheduled start time
+      volume: event.volume * config.volume,
+      filename: event.filename,
+      playCount: event.playCount,
+      delay: positioningDelay * 1000, // Delay within the chunk
+      set: event.set,
+      layer: event.layer,
+      pan: event.pan,
+      dist: event.dist,
+      offset: sourceOffsetForThisSegment, // Log the offset used for -ss
+      duration: trimDurationForChunk, // Log the actual trimmed duration for this chunk
+      sourceFullDuration: sourceFullDuration,
+    });
 
-      // Input stream is [index:a]
-      // Preprocessing
-      if (preprocessFilter) {
-        chainParts.push(`[${index}:a]${preprocessFilter}`)
-        currentInputLabel = `a${index}_pre`
-      } else {
-        currentInputLabel = `${index}:a`
-      }
+    const channels = await getAudioChannels(event.file);
+    const leftGain = event.pan !== undefined ? (1 - event.pan) / 2 : 0.5;
+    const rightGain = event.pan !== undefined ? (1 + event.pan) / 2 : 0.5;
 
-      // Format filter
-      chainParts.push(`[${currentInputLabel}]${formatFilter}`)
-      currentInputLabel = `a${index}_fmt`
+    const chainParts = [];
+    let currentInputLabel = `${index}:a`;
 
-      // Delay filter
-      chainParts.push(`[${currentInputLabel}]${delayFilter}`)
-      currentInputLabel = `a${index}_delay`
+    if (channels === 'quad') {
+      chainParts.push(`[${currentInputLabel}]pan=stereo|c0=c0+c2|c1=c1+c3[a${index}_pre]`);
+      currentInputLabel = `a${index}_pre`;
+    } else if (channels === 'mono' || (channels !== 'stereo' && channels !== 'other')) {
+      // if 'other', it might already be stereo or more; let aformat handle it.
+      // if mono, convert to stereo.
+      chainParts.push(`[${currentInputLabel}]aformat=channel_layouts=stereo[a${index}_pre]`);
+      currentInputLabel = `a${index}_pre`;
+    }
 
-      // Pan filter
-      if (panFilter) {
-        chainParts.push(`[${currentInputLabel}]${panFilter}`)
-        currentInputLabel = `a${index}_pan`
-      }
+    chainParts.push(`[${currentInputLabel}]aformat=channel_layouts=stereo[a${index}_fmt]`);
+    currentInputLabel = `a${index}_fmt`;
 
-      // Pitch and speed adjustment
-      if (event.pitchSpeedFactor && event.pitchSpeedFactor !== 1) {
-        const pitchFactor = event.pitchSpeedFactor
-        const sampleRate = 44100 * pitchFactor // Assuming base sample rate is 44100
-        const pitchFilter = `asetrate=${sampleRate.toFixed(0)}[a${index}_pitch]`
-        chainParts.push(`[${currentInputLabel}]${pitchFilter}`)
-        currentInputLabel = `a${index}_pitch`
+    const atrimFilterString = `atrim=start=0:duration=${trimDurationForChunk.toFixed(6)}`;
+    chainParts.push(`[${currentInputLabel}]${atrimFilterString}[a${index}_trimmed]`);
+    currentInputLabel = `a${index}_trimmed`;
 
-        const tempoFilter = `atempo=${(1 / pitchFactor).toFixed(
-          3
-        )}[a${index}_tempo]`
-        chainParts.push(`[${currentInputLabel}]${tempoFilter}`)
-        currentInputLabel = `a${index}_tempo`
-      }
+    if (positioningDelay > 0.001) {
+      const silenceLabel = `silence_for_${index}`;
+      // Use -t <duration> for anullsrc input option, removing duration from the anullsrc filter string itself.
+      // The anullsrc filter itself doesn't need duration if it's provided as an input option.
+      // So we define the anullsrc, and then it will be used as an input with its own -t.
+      // This means we need to handle anullsrc as a separate input in the main ffmpeg command.
+      // This is getting complex. Let's try simpler: provide duration directly in anullsrc filter string if possible,
+      // but ensure it's compatible. The error "Option 'duration' not found" suggests it's not.
+      // Let's try `anullsrc=cl=stereo:r=44100,duration=${positioningDelay.toFixed(6)}` as a filter graph description.
+      // No, the error is specifically about the anullsrc filter options.
+      // The most compatible way for older ffmpeg is to treat anullsrc as an input and specify -t for it.
+      // This requires significant restructuring of how filters and inputs are assembled.
 
-      // Volume filter
-      chainParts.push(`[${currentInputLabel}]${volumeFilter}`)
-      // Final output label for this event's chain is a${index}
+      // Simpler attempt for anullsrc within filter_complex: use `trim` on an anullsrc.
+      // This is a workaround if direct duration options fail.
+      // anullsrc by default is infinite. We create it, then trim it, then concat.
+      anullsrcDefinitions.push(`anullsrc=channel_layout=stereo:sample_rate=44100[${silenceLabel}_base]`);
+      anullsrcDefinitions.push(`[${silenceLabel}_base]atrim=duration=${positioningDelay.toFixed(6)}[${silenceLabel}]`);
+      const concatFilterString = `[${silenceLabel}][${currentInputLabel}]concat=n=2:v=0:a=1[a${index}_positioned]`;
+      chainParts.push(concatFilterString);
+      currentInputLabel = `a${index}_positioned`;
+    }
 
-      return chainParts.filter(Boolean).join(';')
-    })
-  )
+    if (event.pan !== undefined) {
+      const panFilterString = `pan=stereo|c0=${leftGain.toFixed(3)}*c0|c1=${rightGain.toFixed(3)}*c1[a${index}_pan]`;
+      chainParts.push(`[${currentInputLabel}]${panFilterString}`);
+      currentInputLabel = `a${index}_pan`;
+    }
 
-  const filterChainString = filters.join(';')
-  const mixInputs = eventTimes.map((_, index) => `[a${index}]`).join('')
-  const mixFilter = `${mixInputs}amix=inputs=${eventTimes.length}:duration=longest[amixed]`
-  const finalVolumeFilter = `[amixed]volume=${config.volume}[a]`
+    if (event.pitchSpeedFactor && event.pitchSpeedFactor !== 1) {
+      const pitchFactor = event.pitchSpeedFactor;
+      const sampleRate = 44100 * pitchFactor;
+      chainParts.push(`[${currentInputLabel}]asetrate=${sampleRate.toFixed(0)}[a${index}_pitch]`);
+      currentInputLabel = `a${index}_pitch`;
+      // If speed also needs to be preserved (only pitch shift), an atempo filter would be needed.
+      // Current: changes speed and pitch.
+    }
 
-  const fullFilterComplex = [filterChainString, mixFilter, finalVolumeFilter]
-    .filter(Boolean)
-    .join(';')
+    const volValue = (event.volume * config.volume * (event.dist ?? 1)).toFixed(3);
+    chainParts.push(`[${currentInputLabel}]volume=${volValue}[a${index}_volumed]`);
+    currentInputLabel = `a${index}_volumed`;
+
+    const apadFilterString = `apad=whole_dur=${actualChunkDuration.toFixed(6)}s`;
+    chainParts.push(`[${currentInputLabel}]${apadFilterString}[final_a${index}]`);
+
+    return chainParts.filter(Boolean).join(';');
+  });
+
+  const eventFilterChainsStrings = (await Promise.all(eventFilterChainsPromises)).filter(s => s && s.length > 0);
+  const mainFilterChainString = eventFilterChainsStrings.join(';');
+
+  const segments = [];
+  if (anullsrcDefinitions.length > 0) {
+    segments.push(anullsrcDefinitions.join(';'));
+  }
+  if (mainFilterChainString) {
+    segments.push(mainFilterChainString);
+  }
+
+  if (allEvents.length > 0 && eventFilterChainsStrings.length > 0) { // Only add mix if there are actual event chains
+    const mixInputs = allEvents.map((_, index) => `[final_a${index}]`).join('');
+    const amixDurationParam = actualChunkDuration.toFixed(6);
+    const mixFilter = `${mixInputs}amix=inputs=${allEvents.length}:duration=${amixDurationParam}:dropout_transition=0[amixed]`;
+    segments.push(mixFilter);
+    segments.push(`[amixed]volume=${config.volume}[a]`); // Final master volume
+  } else if (allEvents.length > 0 && eventFilterChainsStrings.length === 0) {
+    // Edge case: events existed, but none resulted in a filter chain (e.g., all trimmed to zero effectively)
+    // Fallback to silence for the chunk duration.
+    // Use anullsrc filter with atrim to set duration for compatibility.
+    segments.push(`anullsrc=channel_layout=stereo:sample_rate=44100[silence_base_chunk];[silence_base_chunk]atrim=duration=${actualChunkDuration.toFixed(6)}[a]`);
+  }
+  // If allEvents is empty, segments will be empty, leading to an empty filter string.
+
+  const fullFilterComplex = segments.filter(Boolean).join(';');
+
   return {
     filterComplexString: fullFilterComplex,
-    eventTimes,
     timelineLogEntries,
-  }
+  };
 }
 
 export async function processChunk(
@@ -155,73 +172,93 @@ export async function processChunk(
   carryOverEvents = [],
   config
 ) {
-  await ensureOutputDir()
-  const tempFile = path.join(outputDir, `temp_chunk_${chunkIndex}.mp3`)
-  const actualChunkDuration = chunkEndTime - chunkStartTime
-  const nextChunkEvents = []
-  const allEvents = [...carryOverEvents, ...chunkEvents]
+  await ensureOutputDir();
+  const tempFile = path.join(outputDir, `temp_chunk_${chunkIndex}.mp3`);
+  const actualChunkDuration = chunkEndTime - chunkStartTime;
+  const nextChunkEvents = [];
+  const allEvents = [...carryOverEvents, ...chunkEvents];
 
   try {
     if (allEvents.length > 0) {
-      const inputs = [];
-      let finalTimelineLog = [];
+      const inputsForCli = [];
+      const eventsWithSourceInfo = []; // To pass to generateFilterComplex
 
       for (const event of allEvents) {
-        const duration = event.duration ?? (await getAudioDuration(event.file)); // This now uses CLI util via audio.js
-        const eventEndTime = event.start + duration - (event.offset || 0);
+        const sourceFullDuration = event.duration ?? (await getAudioDuration(event.file));
+        const sourceOffset = event.offset || 0;
 
-        if (eventEndTime > chunkEndTime) {
-          const durationInCurrentChunk = chunkEndTime - event.start + (event.offset || 0);
-          nextChunkEvents.push({
-            ...event,
-            offset: (event.offset || 0) + durationInCurrentChunk,
-            start: chunkEndTime,
-          });
-        }
+        eventsWithSourceInfo.push({
+          ...event,
+          sourceFullDuration: sourceFullDuration,
+          sourceOffset: sourceOffset,
+        });
 
         const inputEntry = { path: event.file, options: [] };
-        if (event.offset) {
-          inputEntry.options.push('-ss', event.offset.toFixed(3));
+        if (sourceOffset > 0.001) {
+          inputEntry.options.push('-ss', sourceOffset.toFixed(6));
         }
-        inputs.push(inputEntry);
+        inputsForCli.push(inputEntry);
       }
 
-      const { filterComplexString, eventTimes, timelineLogEntries } =
-        await generateFilterComplex(allEvents, chunkStartTime, config, chunkIndex);
-      finalTimelineLog = timelineLogEntries;
+      const { filterComplexString, timelineLogEntries } =
+        await generateFilterComplex(eventsWithSourceInfo, chunkStartTime, config, chunkIndex, actualChunkDuration);
 
-      if (!filterComplexString || eventTimes.length === 0) {
-        // Handle empty chunk (no valid filterable events)
-        console.log(`Generating empty chunk ${chunkIndex} (no valid filterable events)`);
-        // Use anullsrc for silent audio generation
-        const silentInput = [{ path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] }];
+      // Determine nextChunkEvents based on timelineLogEntries (which have calculated trimmed durations)
+      for (const loggedEvent of timelineLogEntries) {
+         // Find the original event details from eventsWithSourceInfo to access sourceFullDuration and initial sourceOffset
+        const originalEventDetails = eventsWithSourceInfo.find(
+            e => e.filename === loggedEvent.filename && e.start === loggedEvent.startTime && e.sourceOffset === loggedEvent.offset
+        );
+
+        if (originalEventDetails) {
+            const playedDurationInThisChunk = loggedEvent.duration; // This is trimDurationForChunk
+            const newOffsetForNextSourceFile = originalEventDetails.sourceOffset + playedDurationInThisChunk;
+
+            if (originalEventDetails.sourceFullDuration > newOffsetForNextSourceFile + 0.001) { // Check if significant audio remains
+                nextChunkEvents.push({
+                    ...originalEventDetails, // Carry over original event data (like file, volume, pan etc.)
+                    offset: newOffsetForNextSourceFile, // This is the new -ss value for the *original* source file
+                    start: chunkEndTime, // Start time for this event in the next chunk's timeline
+                    // duration (original full duration) is already part of originalEventDetails
+                });
+            }
+        }
+      }
+
+      if (!filterComplexString && allEvents.length > 0) {
+        // This case means generateFilterComplex decided no audio from events should play (e.g. all events are outside chunk bounds after delay)
+        // but allEvents was not empty. We should still generate silence.
+        console.log(`Generating empty chunk ${chunkIndex} (events present, but no resulting filter from generateFilterComplex)`);
+        // Use anullsrc with -t option for the input, not in the path string.
+        const silentInput = [{ path: `anullsrc=r=44100:cl=stereo`, options: ['-f', 'lavfi', '-t', actualChunkDuration.toFixed(6)] }];
         await processAudioChunkCli(
           silentInput,
           tempFile,
-          null, // No complex filter needed for anullsrc
+          null,
           actualChunkDuration,
-          [], // No global input options for anullsrc
-          ['-ar', '44100', '-ac', '2'] // Output options
+          [],
+          ['-ar', '44100', '-ac', '2']
         );
       } else {
         await processAudioChunkCli(
-          inputs,
+          inputsForCli,
           tempFile,
           filterComplexString,
           actualChunkDuration,
-          ['-guess_layout_max', '0'], // Global input options
-          ['-map', '[a]', '-ar', '44100', '-ac', '2'] // Output options
+          ['-guess_layout_max', '0'],
+          ['-map', '[a]', '-ar', '44100', '-ac', '2']
         );
       }
 
       const stats = await fs.stat(tempFile);
       console.log(`Chunk ${chunkIndex} processed: ${tempFile}, size: ${stats.size} bytes`);
-      return { tempFile, timelineLog: finalTimelineLog, nextChunkEvents };
+      return { tempFile, timelineLog: timelineLogEntries, nextChunkEvents };
 
     } else {
       // Handle empty chunk (no initial events)
       console.log(`Generating empty chunk ${chunkIndex} (no initial events)`);
-      const silentInput = [{ path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] }];
+      // Use anullsrc with -t option for the input.
+      const silentInput = [{ path: `anullsrc=r=44100:cl=stereo`, options: ['-f', 'lavfi', '-t', actualChunkDuration.toFixed(6)] }];
       await processAudioChunkCli(
         silentInput,
         tempFile,
@@ -236,9 +273,6 @@ export async function processChunk(
     }
   } catch (error) {
     console.error(`Error processing chunk ${chunkIndex}: ${error.message}`);
-    // To maintain original behavior of potentially continuing, we might not want to rethrow.
-    // However, for robustness, rethrowing or specific error handling is better.
-    // For now, let's rethrow to make errors visible.
     throw error;
   }
 }
