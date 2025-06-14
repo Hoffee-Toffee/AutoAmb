@@ -20,7 +20,8 @@ export async function generateFilterComplex(
   allEvents,
   chunkStartTime,
   config,
-  chunkIndex
+  chunkIndex,
+  actualChunkDuration
 ) {
   const eventTimes = []
   const timelineLogEntries = []
@@ -81,8 +82,11 @@ export async function generateFilterComplex(
       const delayFilter = `adelay=${Math.round(delay * 1000)}|${Math.round(
         delay * 1000
       )}[a${index}_delay]`
+      const padFilter = `apad=whole_dur=${actualChunkDuration.toFixed(
+        3
+      )}[a${index}_pad]`
 
-      let currentInputLabel = `a${index}_delay`
+      let currentInputLabel // Will be initialized based on preprocessFilter
       const chainParts = []
 
       // Input stream is [index:a]
@@ -101,6 +105,10 @@ export async function generateFilterComplex(
       // Delay filter
       chainParts.push(`[${currentInputLabel}]${delayFilter}`)
       currentInputLabel = `a${index}_delay`
+
+      // Pad filter to ensure the stream lasts for the whole chunk duration
+      chainParts.push(`[${currentInputLabel}]${padFilter}`)
+      currentInputLabel = `a${index}_pad`
 
       // Pan filter
       if (panFilter) {
@@ -191,7 +199,8 @@ export async function processChunk(
           allEvents,
           chunkStartTime,
           config,
-          chunkIndex
+          chunkIndex,
+          actualChunkDuration
         )
       finalTimelineLog = timelineLogEntries
 

@@ -74,23 +74,23 @@ export default {
     //   overlap: true,
     //   directionality: 'none',
     // },
-    // clang: {
-    //   category: 'met',
-    //   volume: 0.1,
-    //   sets: {
-    //     air: 'amb_air_release_\\d{2}.ogg',
-    //     scuffles: 'amb_quadshot_airvent_scuffles_\\d{2}.exa.ogg',
-    //     pipe: 'amb_quadshot_pipe_stress_(lite|med|lrg)_[a-z]_\\d{2}\\.exa\\.ogg',
-    //   },
-    //   intensity: {
-    //     0: { volume: 0.25, frequency: 1 / 40 },
-    //     1.5: { volume: 0.5, frequency: 1 / 30 },
-    //     2: { volume: 1, frequency: 1 / 25 },
-    //   },
-    //   variance: 0.5,
-    //   directionality: 'unique',
-    //   pitchSpeedRange: [0.9, 1.1],
-    // },
+    clang: {
+      category: 'met',
+      volume: 0.1,
+      sets: {
+        air: 'amb_air_release_\\d{2}.ogg',
+        scuffles: 'amb_quadshot_airvent_scuffles_\\d{2}.exa.ogg',
+        pipe: 'amb_quadshot_pipe_stress_(lite|med|lrg)_[a-z]_\\d{2}\\.exa\\.ogg',
+      },
+      intensity: {
+        0: { volume: 0.25, frequency: 1 / 40 },
+        1.5: { volume: 0.5, frequency: 1 / 30 },
+        2: { volume: 1, frequency: 1 / 25 },
+      },
+      variance: 0.5,
+      directionality: 'unique',
+      pitchSpeedRange: [0.9, 1.1],
+    },
     annc: {
       category: 'sfx',
       volume: 0.25,
