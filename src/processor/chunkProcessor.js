@@ -1,9 +1,8 @@
-// import ffmpeg from 'fluent-ffmpeg'; // Removed
+import ffmpeg from 'fluent-ffmpeg'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getAudioDuration, getAudioChannels } from '../utils/audio.js' // These will now use the CLI utils indirectly
-import { processAudioChunk as processAudioChunkCli } from '../utils/ffmpegCliUtil.js';
+import { getAudioDuration, getAudioChannels } from '../utils/audio.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outputDir = path.join(__dirname, '../../out')
@@ -79,11 +78,8 @@ export async function generateFilterComplex(
         config.volume *
         (event.dist ?? 1)
       ).toFixed(3)}[a${index}]`
-      const delayFilter = `adelay=${Math.round(delay * 1000)}|${Math.round(
-        delay * 1000
-      )}[a${index}_delay]`
 
-      let currentInputLabel = `a${index}_delay`
+      let currentInputLabel = `a${index}_fmt`
       const chainParts = []
 
       // Input stream is [index:a]
@@ -99,9 +95,10 @@ export async function generateFilterComplex(
       chainParts.push(`[${currentInputLabel}]${formatFilter}`)
       currentInputLabel = `a${index}_fmt`
 
-      // Delay filter
-      chainParts.push(`[${currentInputLabel}]${delayFilter}`)
-      currentInputLabel = `a${index}_delay`
+      // Pad filter (replacing delay)
+      const padFilter = `apad=start_duration=${delay.toFixed(3)}s[a${index}_pad]`;
+      chainParts.push(`[${currentInputLabel}]${padFilter}`);
+      currentInputLabel = `a${index}_pad`;
 
       // Pan filter
       if (panFilter) {
@@ -161,84 +158,128 @@ export async function processChunk(
   const nextChunkEvents = []
   const allEvents = [...carryOverEvents, ...chunkEvents]
 
-  try {
-    if (allEvents.length > 0) {
-      const inputs = [];
-      let finalTimelineLog = [];
+  if (allEvents.length > 0) {
+    const ff = ffmpeg()
+    let finalTimelineLog = []
 
-      for (const event of allEvents) {
-        const duration = event.duration ?? (await getAudioDuration(event.file)); // This now uses CLI util via audio.js
-        const eventEndTime = event.start + duration - (event.offset || 0);
+    // Determine which events carry over to the next chunk
+    for (const event of allEvents) {
+      const duration = event.duration ?? (await getAudioDuration(event.file))
+      const eventEndTime = event.start + duration - (event.offset || 0)
 
-        if (eventEndTime > chunkEndTime) {
-          const durationInCurrentChunk = chunkEndTime - event.start + (event.offset || 0);
-          nextChunkEvents.push({
-            ...event,
-            offset: (event.offset || 0) + durationInCurrentChunk,
-            start: chunkEndTime,
-          });
-        }
-
-        const inputEntry = { path: event.file, options: [] };
-        if (event.offset) {
-          inputEntry.options.push('-ss', event.offset.toFixed(3));
-        }
-        inputs.push(inputEntry);
+      if (eventEndTime > chunkEndTime) {
+        const durationInCurrentChunk =
+          chunkEndTime - event.start + (event.offset || 0)
+        nextChunkEvents.push({
+          ...event,
+          offset: (event.offset || 0) + durationInCurrentChunk,
+          start: chunkEndTime, // Start time for the next segment is the current chunk's end time
+        })
       }
-
-      const { filterComplexString, eventTimes, timelineLogEntries } =
-        await generateFilterComplex(allEvents, chunkStartTime, config, chunkIndex);
-      finalTimelineLog = timelineLogEntries;
-
-      if (!filterComplexString || eventTimes.length === 0) {
-        // Handle empty chunk (no valid filterable events)
-        console.log(`Generating empty chunk ${chunkIndex} (no valid filterable events)`);
-        // Use anullsrc for silent audio generation
-        const silentInput = [{ path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] }];
-        await processAudioChunkCli(
-          silentInput,
-          tempFile,
-          null, // No complex filter needed for anullsrc
-          actualChunkDuration,
-          [], // No global input options for anullsrc
-          ['-ar', '44100', '-ac', '2'] // Output options
-        );
-      } else {
-        await processAudioChunkCli(
-          inputs,
-          tempFile,
-          filterComplexString,
-          actualChunkDuration,
-          ['-guess_layout_max', '0'], // Global input options
-          ['-map', '[a]', '-ar', '44100', '-ac', '2'] // Output options
-        );
+      ff.input(event.file)
+      if (event.offset) {
+        ff.inputOptions([`-ss ${event.offset.toFixed(3)}`])
       }
-
-      const stats = await fs.stat(tempFile);
-      console.log(`Chunk ${chunkIndex} processed: ${tempFile}, size: ${stats.size} bytes`);
-      return { tempFile, timelineLog: finalTimelineLog, nextChunkEvents };
-
-    } else {
-      // Handle empty chunk (no initial events)
-      console.log(`Generating empty chunk ${chunkIndex} (no initial events)`);
-      const silentInput = [{ path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] }];
-      await processAudioChunkCli(
-        silentInput,
-        tempFile,
-        null,
-        actualChunkDuration,
-        [],
-        ['-ar', '44100', '-ac', '2']
-      );
-      const stats = await fs.stat(tempFile);
-      console.log(`Empty chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`);
-      return { tempFile, timelineLog: [], nextChunkEvents: [] };
     }
-  } catch (error) {
-    console.error(`Error processing chunk ${chunkIndex}: ${error.message}`);
-    // To maintain original behavior of potentially continuing, we might not want to rethrow.
-    // However, for robustness, rethrowing or specific error handling is better.
-    // For now, let's rethrow to make errors visible.
-    throw error;
+
+    // Pass config to generateFilterComplex
+    const { filterComplexString, eventTimes, timelineLogEntries } =
+      await generateFilterComplex(allEvents, chunkStartTime, config, chunkIndex)
+    finalTimelineLog = timelineLogEntries
+
+    if (!filterComplexString || eventTimes.length === 0) {
+      return new Promise((resolve, reject) => {
+        ffmpeg()
+          .input('anullsrc=r=44100:cl=stereo')
+          .inputFormat('lavfi')
+          .outputOptions(['-ar 44100', '-ac 2'])
+          .duration(actualChunkDuration)
+          .output(tempFile)
+          .on('end', async () => {
+            try {
+              const stats = await fs.stat(tempFile)
+              console.log(
+                `Empty chunk ${chunkIndex} (no valid filterable events) generated: ${tempFile}, size: ${stats.size} bytes`
+              )
+              resolve({
+                tempFile,
+                timelineLog: finalTimelineLog,
+                nextChunkEvents,
+              })
+            } catch (err) {
+              reject(err)
+            }
+          })
+          .on('error', (err, stdout, stderr) => {
+            console.error(
+              `FFmpeg error for empty chunk ${chunkIndex} (no filterable events): ${err.message}`
+            )
+            console.error(`FFmpeg stderr: ${stderr}`)
+            reject(err)
+          })
+          .run()
+      })
+    }
+
+    await new Promise((resolve, reject) => {
+      ff.inputOptions('-guess_layout_max 0')
+        .complexFilter(filterComplexString)
+        .outputOptions(['-map [a]', '-ar 44100', '-ac 2'])
+        .duration(actualChunkDuration)
+        .output(tempFile)
+        .on('end', async () => {
+          try {
+            const stats = await fs.stat(tempFile)
+            console.log(
+              `Chunk ${chunkIndex} generated: ${tempFile}, size: ${stats.size} bytes`
+            )
+            resolve({
+              tempFile,
+              timelineLog: finalTimelineLog,
+              nextChunkEvents,
+            })
+          } catch (err) {
+            reject(err)
+          }
+        })
+        .on('error', (err, stdout, stderr) => {
+          console.error(`FFmpeg error for chunk ${chunkIndex}: ${err.message}`)
+          console.error(`FFmpeg stderr: ${stderr}`)
+          reject(err)
+        })
+        .run()
+    })
+
+    return { tempFile, timelineLog: finalTimelineLog, nextChunkEvents }
+  } else {
+    await ensureOutputDir()
+    await new Promise((resolve, reject) => {
+      ffmpeg()
+        .input('anullsrc=r=44100:cl=stereo')
+        .inputFormat('lavfi')
+        .outputOptions(['-ar 44100', '-ac 2'])
+        .duration(actualChunkDuration)
+        .output(tempFile)
+        .on('end', async () => {
+          try {
+            const stats = await fs.stat(tempFile)
+            console.log(
+              `Empty chunk ${chunkIndex} (no initial events) generated: ${tempFile}, size: ${stats.size} bytes`
+            )
+            resolve({ tempFile, timelineLog: [], nextChunkEvents: [] })
+          } catch (err) {
+            reject(err)
+          }
+        })
+        .on('error', (err, stdout, stderr) => {
+          console.error(
+            `FFmpeg error for empty chunk ${chunkIndex}: ${err.message}`
+          )
+          console.error(`FFmpeg stderr: ${stderr}`)
+          reject(err)
+        })
+        .run()
+    })
+    return { tempFile, timelineLog: [], nextChunkEvents: [] }
   }
 }
