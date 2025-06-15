@@ -79,11 +79,10 @@ export async function generateFilterComplex(
         config.volume *
         (event.dist ?? 1)
       ).toFixed(3)}[a${index}]`
-      const delayFilter = `adelay=${Math.round(delay * 1000)}|${Math.round(
-        delay * 1000
-      )}[a${index}_delay]`
+      const formattedDelay = (delay * 1000).toFixed(6)
+      const delayFilter = `adelay=${formattedDelay}|${formattedDelay}[a${index}_delay]`
       const padFilter = `apad=whole_dur=${actualChunkDuration.toFixed(
-        3
+        6
       )}[a${index}_pad]`
 
       let currentInputLabel // Will be initialized based on preprocessFilter

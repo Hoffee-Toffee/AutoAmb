@@ -19,3 +19,11 @@ export function gaussianClamp(mean, sigma) {
   const raw = mean + x * sigma;
   return Math.min(1, Math.max(0, raw));
 }
+
+export function randomNormal() {
+  let u = 0, v = 0;
+  while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+  while(v === 0) v = Math.random();
+  const z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+  return z;
+}

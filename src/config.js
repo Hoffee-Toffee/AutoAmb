@@ -71,7 +71,6 @@ export default {
     //     2: { volume: 0.1, frequency: 1 },
     //   },
     //   variance: 0,
-    //   overlap: true,
     //   directionality: 'none',
     // },
     clang: {
@@ -83,11 +82,11 @@ export default {
         pipe: 'amb_quadshot_pipe_stress_(lite|med|lrg)_[a-z]_\\d{2}\\.exa\\.ogg',
       },
       intensity: {
-        0: { volume: 0.25, frequency: 1 / 40 },
-        1.5: { volume: 0.5, frequency: 1 / 30 },
-        2: { volume: 1, frequency: 1 / 25 },
+        0: { volume: 0.25, frequency: 1 / 20 },
+        1.5: { volume: 0.5, frequency: 1 / 20 },
+        2: { volume: 1, frequency: 1 / 10 },
       },
-      variance: 0.5,
+      variance: 0,
       directionality: 'unique',
       pitchSpeedRange: [0.9, 1.1],
     },
@@ -99,6 +98,7 @@ export default {
       },
       intensity: {
         0: { volume: 0.15, frequency: 1 / 45 },
+        2: { volume: 0.15, frequency: 1 / 45 },
       },
       variance: 0,
       directionality: 'shared',
@@ -119,7 +119,7 @@ export default {
     // },
     crazy: {
       category: 'npc',
-      volume: 0.1,
+      volume: 0.25,
       sets: {
         files: 'observation_z01_\\d{2}.ogg',
       },

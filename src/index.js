@@ -35,6 +35,7 @@ async function generateSoundscape(config, layers) {
       acc[layer] = 0
       return acc
     }, {})
+    const layerLastScheduledEventStartTimes = {};
 
     for (const [layerName, layerData] of Object.entries(layers)) {
       // Pass config to loadAudioFiles
@@ -43,6 +44,16 @@ async function generateSoundscape(config, layers) {
         sharedPositions[layerName] = generatePosition()
       if (layerData.bufferBetweenSounds) {
         lastEventEndTimes[layerName] = {}
+        // Note: lastEventEndTimes is populated with specific keys ('_layerCycle' or setName)
+        // directly within generateTimelineEvents based on cycleThrough strategy.
+        // No need to pre-populate with setName here.
+      }
+      // Initialize layerLastScheduledEventStartTimes for non-buffered layers
+      if (!layerData.bufferBetweenSounds) {
+        layerLastScheduledEventStartTimes[layerName] = {};
+        for (const setName of Object.keys(layerData.sets)) {
+            layerLastScheduledEventStartTimes[layerName][setName] = 0.0;
+        }
       }
     }
 
@@ -100,6 +111,7 @@ async function generateSoundscape(config, layers) {
           sharedPositions[layerName],
           frequencies,
           lastEventEndTimes,
+          layerLastScheduledEventStartTimes, // Added here
           config
         )
 

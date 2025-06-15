@@ -74,27 +74,17 @@ export function calculateFrequenciesAndCounts(
       `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
     ] = freqPerScheduleUnit
 
-    if (layerData.variance === 0) {
-      // For no variance, counts might not be strictly needed if scheduling is grid-based using scaledFrequency directly.
-      // However, if it implies a fixed number of events derived from frequency, it would be calculated here.
-      // For now, assuming variance=0 means grid-based, so counts might be less relevant or derived differently.
-      counts[`${set}Events`] = 0 // Or calculate deterministic count based on freqPerScheduleUnit
-    } else {
-      // Variance is used to determine a range around the scaled frequency for event counts
-      const stdDev = Math.sqrt(freqPerScheduleUnit) // Standard deviation for Poisson is sqrt(lambda)
-      const minEvents = Math.max(
-        0,
-        Math.floor(freqPerScheduleUnit - layerData.variance * stdDev)
-      )
-      const maxEvents = Math.ceil(
-        freqPerScheduleUnit + layerData.variance * stdDev
-      )
-      // Use Poisson distribution around the scaled frequency
-      counts[`${set}Events`] = Math.min(
-        maxEvents,
-        Math.max(minEvents, poissonRandom(freqPerScheduleUnit))
-      )
-    }
+    // Unified calculation for counts
+    // Ensure freqPerScheduleUnit is not negative before sqrt or poissonRandom
+    const safeFreqPerScheduleUnit = Math.max(0, freqPerScheduleUnit);
+
+    const stdDev = Math.sqrt(safeFreqPerScheduleUnit); 
+    const rangeDelta = (layerData.variance || 0) * stdDev; // Use (layerData.variance || 0) to default undefined to 0
+
+    const minN = Math.max(0, Math.floor(safeFreqPerScheduleUnit - rangeDelta));
+    const maxN = Math.ceil(safeFreqPerScheduleUnit + rangeDelta);
+    
+    counts[`${set}Events`] = Math.min(maxN, Math.max(minN, poissonRandom(safeFreqPerScheduleUnit)));
   }
 
   return { frequencies, scaledFrequencies, counts }

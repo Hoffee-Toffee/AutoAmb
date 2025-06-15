@@ -5,32 +5,38 @@ import path from 'path'
 import {
   getAudioDuration as getAudioDurationCli,
   getAudioChannels as getAudioChannelsCli,
-  validateAudioFile as validateAudioFileCli
-} from './ffmpegCliUtil.js';
+  validateAudioFile as validateAudioFileCli,
+} from './ffmpegCliUtil.js'
 import { gaussianClamp } from './math.js'
 
 export async function getAudioDuration(filePath) {
   try {
-    const duration = await getAudioDurationCli(filePath);
+    const duration = await getAudioDurationCli(filePath)
     if (duration <= 0) {
-      console.warn(`Invalid duration (${duration}) for ${filePath} from CLI util.`);
-      return 0; // Default to 0 as per original behavior
+      console.warn(
+        `Invalid duration (${duration}) for ${filePath} from CLI util.`
+      )
+      return 0 // Default to 0 as per original behavior
     }
-    return duration;
+    return duration
   } catch (err) {
-    console.warn(`Failed to get duration for ${filePath} using CLI util: ${err.message}`);
-    return 0; // Default to 0 as per original behavior
+    console.warn(
+      `Failed to get duration for ${filePath} using CLI util: ${err.message}`
+    )
+    return 0 // Default to 0 as per original behavior
   }
 }
 
 export async function getAudioChannels(filePath) {
   try {
     // The CLI util already maps to 'mono', 'stereo', 'quad', 'other'
-    const channelLayout = await getAudioChannelsCli(filePath);
-    return channelLayout;
+    const channelLayout = await getAudioChannelsCli(filePath)
+    return channelLayout
   } catch (err) {
-    console.warn(`Failed to get channels for ${filePath} using CLI util: ${err.message}`);
-    return 'unknown'; // Default to 'unknown' as per original behavior
+    console.warn(
+      `Failed to get channels for ${filePath} using CLI util: ${err.message}`
+    )
+    return 'unknown' // Default to 'unknown' as per original behavior
   }
 }
 
@@ -76,19 +82,23 @@ export function selectFile(
 
 export async function validateAudioFile(filePath) {
   try {
-    const isValid = await validateAudioFileCli(filePath);
+    const isValid = await validateAudioFileCli(filePath)
     if (!isValid) {
       // ffmpegCliUtil.validateAudioFile already resolves false for invalid files.
       // It doesn't throw an error for invalid files, only for spawn/execution issues.
       // So, if it resolves to false, we log it here as per original behavior.
-      console.warn(`Validation failed for ${filePath} (as reported by CLI util).`);
+      console.warn(
+        `Validation failed for ${filePath} (as reported by CLI util).`
+      )
     }
-    return isValid;
+    return isValid
   } catch (error) {
     // This catch block would handle errors from ffmpegCliUtil if it *rejected*
     // (e.g., ffprobe/ffmpeg not found, or a truly unexpected error).
-    console.warn(`Error during validation for ${filePath} with CLI util: ${error.message}`);
-    return false;
+    console.warn(
+      `Error during validation for ${filePath} with CLI util: ${error.message}`
+    )
+    return false
   }
 }
 
@@ -116,7 +126,8 @@ export async function loadAudioFiles(layerName, layerData, config) {
       durations[set] = []
       for (const file of setFiles) {
         const filePath = path.join(layerDir, file)
-        if (await validateAudioFile(filePath)) { // Now uses refactored validateAudioFile
+        if (await validateAudioFile(filePath)) {
+          // Now uses refactored validateAudioFile
           const duration = await getAudioDuration(filePath) // Now uses refactored getAudioDuration
           if (duration > 0) {
             validFiles[set].push(file)
