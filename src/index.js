@@ -15,10 +15,16 @@ import { concatenateChunks } from './processor/chunkJoiner.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function main() {
-  await generateSoundscape(mainConfig.config, mainConfig.layers)
+  const isPlanOnly = process.argv.includes('--plan-only')
+
+  const message = `----- AutoAmb ${
+    isPlanOnly ? '(PLAN ONLY MODE)' : ''
+  } -----\n`
+  console.log(message)
+  await generateSoundscape(mainConfig.config, mainConfig.layers, isPlanOnly)
 }
 
-async function generateSoundscape(config, layers) {
+async function generateSoundscape(config, layers, isPlanOnly = false) {
   try {
     const filesData = {}
     const intensityLog = []
@@ -35,27 +41,24 @@ async function generateSoundscape(config, layers) {
       acc[layer] = 0
       return acc
     }, {})
-    const layerLastScheduledEventStartTimes = {};
+    const layerLastScheduledEventStartTimes = {}
 
+    console.log(`Loading audio data...`)
     for (const [layerName, layerData] of Object.entries(layers)) {
-      // Pass config to loadAudioFiles
       filesData[layerName] = await loadAudioFiles(layerName, layerData, config)
       if (layerData.directionality === 'shared')
         sharedPositions[layerName] = generatePosition()
       if (layerData.bufferBetweenSounds) {
         lastEventEndTimes[layerName] = {}
-        // Note: lastEventEndTimes is populated with specific keys ('_layerCycle' or setName)
-        // directly within generateTimelineEvents based on cycleThrough strategy.
-        // No need to pre-populate with setName here.
       }
-      // Initialize layerLastScheduledEventStartTimes for non-buffered layers
       if (!layerData.bufferBetweenSounds) {
-        layerLastScheduledEventStartTimes[layerName] = {};
+        layerLastScheduledEventStartTimes[layerName] = {}
         for (const setName of Object.keys(layerData.sets)) {
-            layerLastScheduledEventStartTimes[layerName][setName] = 0.0;
+          layerLastScheduledEventStartTimes[layerName][setName] = 0.0
         }
       }
     }
+    console.log(`Cache loaded.\n\n`)
 
     const subBlocks = Math.floor(config.duration / config.scheduleGranularity)
     for (let i = 0; i < subBlocks; i++) {
@@ -63,7 +66,7 @@ async function generateSoundscape(config, layers) {
       const progress = subBlockStartTime / config.duration
 
       for (const [layerName, layerData] of Object.entries(layers)) {
-        const intensity = getIntensityForLayer(layerName, progress) // No config needed
+        const intensity = getIntensityForLayer(layerName, progress)
         const { lowerKey, upperKey, weight } = interpolateIntensity(
           layerData,
           intensity
@@ -72,7 +75,6 @@ async function generateSoundscape(config, layers) {
           (1 - weight) * layerData.intensity[lowerKey].volume +
           weight * layerData.intensity[upperKey].volume
 
-        // Pass config to calculateFrequenciesAndCounts
         const { frequencies, scaledFrequencies, counts } =
           calculateFrequenciesAndCounts(
             layerName,
@@ -93,7 +95,6 @@ async function generateSoundscape(config, layers) {
           ...counts,
         })
 
-        // Pass config to generateTimelineEvents
         const { events, setToggled } = generateTimelineEvents(
           layerName,
           layerData,
@@ -111,7 +112,7 @@ async function generateSoundscape(config, layers) {
           sharedPositions[layerName],
           frequencies,
           lastEventEndTimes,
-          layerLastScheduledEventStartTimes, // Added here
+          layerLastScheduledEventStartTimes,
           config
         )
 
@@ -145,6 +146,21 @@ async function generateSoundscape(config, layers) {
       JSON.stringify(intensityLog, null, 2)
     )
 
+    if (isPlanOnly) {
+      const timelineLog = timeline.map((event) => ({
+        layer: event.layer,
+        start: event.start,
+        file: event.file,
+        volume: event.volume,
+        duration: event.duration,
+      }))
+      await fs.writeFile(
+        path.join(outDir, 'timeline_log.json'),
+        JSON.stringify(timelineLog, null, 2)
+      )
+      return
+    }
+
     const tempFiles = []
     const timelineLog = []
     const totalChunks = Math.ceil(config.duration / config.chunkDuration)
@@ -169,7 +185,6 @@ async function generateSoundscape(config, layers) {
       console.log(
         `Processing chunk ${i} with ${chunkEventsInScope.length} events`
       )
-      // Pass config to processChunk
       const {
         tempFile,
         timelineLog: chunkTimelineLog,
@@ -180,9 +195,9 @@ async function generateSoundscape(config, layers) {
         chunkStartTime,
         chunkEndTime,
         carryOverEvents,
-        config // Pass config
+        config
       )
-      if (tempFile) tempFiles.push(tempFile) // Only push if a tempFile was created
+      if (tempFile) tempFiles.push(tempFile)
       timelineLog.push(...chunkTimelineLog)
       carryOverEvents = nextChunkEvents
     }
@@ -192,7 +207,6 @@ async function generateSoundscape(config, layers) {
       JSON.stringify(timelineLog, null, 2)
     )
     console.log(`Concatenating ${tempFiles.length} chunks`)
-    // Pass config to concatenateChunks
     if (tempFiles.length > 0) {
       await concatenateChunks(tempFiles, config)
     } else {

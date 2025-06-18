@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "node director.js",
+    "run": "node src/index.js",
+    "run:fresh": "node src/index.js --no-cache",
+    "plan": "node src/index.js --plan-only",
+    "plan:fresh": "node src/index.js --plan-only --no-cache",
+    "cli": "node src/cli.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -12,7 +17,8 @@
   "description": "",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@ffprobe-installer/ffprobe": "^2.1.2"
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "chalk": "^5.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.18",

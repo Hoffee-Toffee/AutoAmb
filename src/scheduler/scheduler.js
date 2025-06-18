@@ -150,13 +150,11 @@ export function generateTimelineEvents(
           : setName
       if (!lastEventEndTimes[layerName]) lastEventEndTimes[layerName] = {}
       if (lastEventEndTimes[layerName][bufferTrackerKey] === undefined) {
-        lastEventEndTimes[layerName][bufferTrackerKey] = 0.0 // Initialize if not present
+        lastEventEndTimes[layerName][bufferTrackerKey] = 0
       }
       referenceTime = lastEventEndTimes[layerName][bufferTrackerKey]
 
-      const freqRate = directSetFrequencies
-        ? directSetFrequencies[setName]
-        : 0
+      const freqRate = directSetFrequencies ? directSetFrequencies[setName] : 0
 
       if (freqRate < 0) {
         console.warn(
@@ -165,137 +163,175 @@ export function generateTimelineEvents(
         continue
       } else if (freqRate === 0) {
         frequencyValue = 0 // Play immediately after referenceTime (plus variance)
-      } else { // freqRate > 0
+      } else {
+        // freqRate > 0
         frequencyValue = 1.0 / freqRate
       }
 
       // This is the buffered sound path - event creation happens below this 'if/else'
       let calculatedInterval
-      if (frequencyValue === 0 && layerData.bufferBetweenSounds) { // This check is specific to buffered sounds with freqRate = 0
-          calculatedInterval = 0;
+      if (frequencyValue === 0 && layerData.bufferBetweenSounds) {
+        // This check is specific to buffered sounds with freqRate = 0
+        calculatedInterval = 0
       } else {
-          calculatedInterval = frequencyValue + randomNormal() * varianceValue;
-          if (calculatedInterval <= 0 && frequencyValue > 0) {
-              calculatedInterval = frequencyValue;
-          } else if (calculatedInterval <= 0) {
-              calculatedInterval = 0.001; // Small positive interval
-          }
+        calculatedInterval = frequencyValue + randomNormal() * varianceValue
+        if (calculatedInterval <= 0 && frequencyValue > 0) {
+          calculatedInterval = frequencyValue
+        } else if (calculatedInterval <= 0) {
+          calculatedInterval = 0.001 // Small positive interval
+        }
       }
-      
-      let potentialNextEventStartTime = referenceTime + calculatedInterval;
+
+      let potentialNextEventStartTime = referenceTime + calculatedInterval
 
       const eventSchedulingCondition =
         potentialNextEventStartTime < config.duration &&
-        potentialNextEventStartTime < subBlockStartTime + config.scheduleGranularity &&
-        (layerData.bufferBetweenSounds || potentialNextEventStartTime >= subBlockStartTime); // Second part of OR is always true if !bufferBetweenSounds
+        potentialNextEventStartTime <
+          subBlockStartTime + config.scheduleGranularity &&
+        (layerData.bufferBetweenSounds ||
+          potentialNextEventStartTime >= subBlockStartTime) // Second part of OR is always true if !bufferBetweenSounds
 
       if (eventSchedulingCondition) {
-          const selectedFileDetails = selectAndPrepareFile(
-              validFiles[setName],
-              playCounts[setName],
-              lastPlayedFiles[setName],
-              layerData.cycleThrough === 'files',
-              currentFileCycleGlobalIndex,
-              durations[setName],
-              config.audioDir,
-              layerData.category,
-              setName
-          );
+        const selectedFileDetails = selectAndPrepareFile(
+          validFiles[setName],
+          playCounts[setName],
+          lastPlayedFiles[setName],
+          layerData.cycleThrough === 'files',
+          currentFileCycleGlobalIndex,
+          durations[setName],
+          config.audioDir,
+          layerData.category,
+          setName
+        )
 
-          if (selectedFileDetails && (potentialNextEventStartTime + selectedFileDetails.duration <= config.duration)) {
-              const event = createAudioEvent(
-                  selectedFileDetails.path,
-                  selectedFileDetails.name,
-                  potentialNextEventStartTime,
-                  selectedFileDetails.duration,
-                  volume,
-                  layerName,
-                  setName,
-                  position,
-                  layerData.pitchSpeedRange
-              );
-              events.push(event);
-              lastPlayedFiles[setName] = selectedFileDetails.name;
-              
-              const chunkIndex = Math.floor(potentialNextEventStartTime / config.chunkDuration);
-              if (chunkCounts && chunkCounts[layerName] && chunkIndex < chunkCounts[layerName].length) {
-                  chunkCounts[layerName][chunkIndex]++;
-              }
+        if (
+          selectedFileDetails &&
+          potentialNextEventStartTime < config.duration
+        ) {
+          const event = createAudioEvent(
+            selectedFileDetails.path,
+            selectedFileDetails.name,
+            potentialNextEventStartTime,
+            selectedFileDetails.duration,
+            volume,
+            layerName,
+            setName,
+            position,
+            layerData.pitchSpeedRange
+          )
+          events.push(event)
+          lastPlayedFiles[setName] = selectedFileDetails.name
 
-              if (layerData.bufferBetweenSounds && bufferTrackerKey) { // This was correctly here
-                  lastEventEndTimes[layerName][bufferTrackerKey] = potentialNextEventStartTime + selectedFileDetails.duration;
-              }
-              
-              if (layerData.cycleThrough === 'sets' || layerData.cycleThrough === 'files') {
-                  setToggled = true;
-              }
+          const chunkIndex = Math.floor(
+            potentialNextEventStartTime / config.chunkDuration
+          )
+          if (
+            chunkCounts &&
+            chunkCounts[layerName] &&
+            chunkIndex < chunkCounts[layerName].length
+          ) {
+            chunkCounts[layerName][chunkIndex]++
           }
+
+          if (layerData.bufferBetweenSounds && bufferTrackerKey) {
+            // This was correctly here
+            lastEventEndTimes[layerName][bufferTrackerKey] =
+              potentialNextEventStartTime + selectedFileDetails.duration
+          }
+
+          if (
+            layerData.cycleThrough === 'sets' ||
+            layerData.cycleThrough === 'files'
+          ) {
+            setToggled = true
+          }
+        }
       }
-    } else { // Non-buffered sounds (Option A: previousEventStartTime + Interval + TimeJitter)
-            // This block is executed for each setName if !layerData.bufferBetweenSounds
-            
-            let actualLastStartTime = (layerLastScheduledEventStartTimes[layerName] && 
-                                   layerLastScheduledEventStartTimes[layerName][setName] !== undefined)
-                                  ? layerLastScheduledEventStartTimes[layerName][setName]
-                                  : 0.0; // Should be found due to initialization in index.js
+    } else {
+      // Non-buffered sounds (Option A: previousEventStartTime + Interval + TimeJitter)
+      // This block is executed for each setName if !layerData.bufferBetweenSounds
 
-            const baseRate = directSetFrequencies ? directSetFrequencies[setName] : 0;
-            if (baseRate === undefined || baseRate <= 0) {
-                // console.warn(`Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`);
-                continue; 
-            }
-            const currentInterval = config.frequencyUnit / baseRate; // Assuming config.frequencyUnit is in seconds
-            const timeJitter = randomNormal() * (layerData.variance || 0);
+      let actualLastStartTime =
+        layerLastScheduledEventStartTimes[layerName] &&
+        layerLastScheduledEventStartTimes[layerName][setName] !== undefined
+          ? layerLastScheduledEventStartTimes[layerName][setName]
+          : 0.0 // Should be found due to initialization in index.js
 
-            let potentialEventStartTime = actualLastStartTime + currentInterval + timeJitter;
-            potentialEventStartTime = Math.max(0, potentialEventStartTime); // Ensure not negative
+      const baseRate = directSetFrequencies ? directSetFrequencies[setName] : 0
+      if (baseRate === undefined || baseRate <= 0) {
+        // console.warn(`Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`);
+        continue
+      }
+      const currentInterval = config.frequencyUnit / baseRate // Assuming config.frequencyUnit is in seconds
+      const timeJitter = randomNormal() * (layerData.variance || 0)
 
-            if (potentialEventStartTime >= subBlockStartTime &&
-                potentialEventStartTime < (subBlockStartTime + config.scheduleGranularity) &&
-                potentialEventStartTime < config.duration) {
+      let potentialEventStartTime =
+        actualLastStartTime + currentInterval + timeJitter
+      potentialEventStartTime = Math.max(0, potentialEventStartTime) // Ensure not negative
 
-                const selectedFileDetails = selectAndPrepareFile(
-                    validFiles[setName],
-                    playCounts[setName],
-                    lastPlayedFiles[setName],
-                    layerData.cycleThrough === 'files',
-                    currentFileCycleGlobalIndex, 
-                    durations[setName],
-                    config.audioDir,
-                    layerData.category,
-                    setName
-                );
+      if (
+        potentialEventStartTime >= subBlockStartTime &&
+        potentialEventStartTime <
+          subBlockStartTime + config.scheduleGranularity &&
+        potentialEventStartTime < config.duration
+      ) {
+        const selectedFileDetails = selectAndPrepareFile(
+          validFiles[setName],
+          playCounts[setName],
+          lastPlayedFiles[setName],
+          layerData.cycleThrough === 'files',
+          currentFileCycleGlobalIndex,
+          durations[setName],
+          config.audioDir,
+          layerData.category,
+          setName
+        )
 
-                if (selectedFileDetails && (potentialEventStartTime + selectedFileDetails.duration <= config.duration)) {
-                    const event = createAudioEvent(
-                        selectedFileDetails.path,
-                        selectedFileDetails.name,
-                        potentialEventStartTime,
-                        selectedFileDetails.duration,
-                        volume, 
-                        layerName,
-                        setName,
-                        position, 
-                        layerData.pitchSpeedRange
-                    );
-                    events.push(event);
-                    
-                    if (!layerLastScheduledEventStartTimes[layerName]) layerLastScheduledEventStartTimes[layerName] = {};
-                    layerLastScheduledEventStartTimes[layerName][setName] = potentialEventStartTime;
-                    
-                    lastPlayedFiles[setName] = selectedFileDetails.name; 
+        if (
+          selectedFileDetails &&
+          potentialEventStartTime + selectedFileDetails.duration <=
+            config.duration
+        ) {
+          const event = createAudioEvent(
+            selectedFileDetails.path,
+            selectedFileDetails.name,
+            potentialEventStartTime,
+            selectedFileDetails.duration,
+            volume,
+            layerName,
+            setName,
+            position,
+            layerData.pitchSpeedRange
+          )
+          events.push(event)
 
-                    const chunkIndex = Math.floor(potentialEventStartTime / config.chunkDuration);
-                    if (chunkCounts && chunkCounts[layerName] && chunkIndex < chunkCounts[layerName].length) {
-                        chunkCounts[layerName][chunkIndex]++;
-                    }
+          if (!layerLastScheduledEventStartTimes[layerName])
+            layerLastScheduledEventStartTimes[layerName] = {}
+          layerLastScheduledEventStartTimes[layerName][setName] =
+            potentialEventStartTime
 
-                    if (layerData.cycleThrough === 'sets' || layerData.cycleThrough === 'files') {
-                        setToggled = true;
-                    }
-                }
-            }
-        // The main loop `for (const setName of setsToProcess)` continues, so no `continue` here.
+          lastPlayedFiles[setName] = selectedFileDetails.name
+
+          const chunkIndex = Math.floor(
+            potentialEventStartTime / config.chunkDuration
+          )
+          if (
+            chunkCounts &&
+            chunkCounts[layerName] &&
+            chunkIndex < chunkCounts[layerName].length
+          ) {
+            chunkCounts[layerName][chunkIndex]++
+          }
+
+          if (
+            layerData.cycleThrough === 'sets' ||
+            layerData.cycleThrough === 'files'
+          ) {
+            setToggled = true
+          }
+        }
+      }
+      // The main loop `for (const setName of setsToProcess)` continues, so no `continue` here.
     }
   }
   return { events, setToggled }
