@@ -86,8 +86,6 @@ function determineSetsToProcess(layerData, currentSetIndex) {
     }
     return [] // No sets to process
   }
-  // For 'files' cycling or no cycling ('concurrent' or undefined), process all sets.
-  // The file selection within 'files' cycling mode is handled by setIndex passed to selectFile.
   return allSetKeys
 }
 
@@ -99,15 +97,12 @@ export function generateTimelineEvents(
   lastPlayedFiles,
   setIndex,
   subBlockStartTime,
-  intensity,
   volume,
-  counts,
   chunkCounts,
   durations,
-  scaledFrequencies,
   sharedPosition,
   directSetFrequencies,
-  layerLastScheduledEventStartTimes, // Added
+  layerLastScheduledEventStartTimes,
   lastEventEndTimes,
   config
 ) {
@@ -137,13 +132,12 @@ export function generateTimelineEvents(
       currentFileCycleGlobalIndex = setIndex
     }
 
-    // Refactored scheduling logic starts here
     let referenceTime
     let frequencyValue
-    const varianceValue = layerData.variance || 0
-    let bufferTrackerKey = null // Used only if bufferBetweenSounds is true
+    let bufferTrackerKey = null
 
     if (layerData.bufferBetweenSounds) {
+      const varianceValue = layerData.variance || 0
       bufferTrackerKey =
         layerData.cycleThrough === 'sets' || layerData.cycleThrough === 'files'
           ? '_layerCycle'
@@ -164,23 +158,23 @@ export function generateTimelineEvents(
       } else if (freqRate === 0) {
         frequencyValue = 0 // Play immediately after referenceTime (plus variance)
       } else {
-        // freqRate > 0
         frequencyValue = 1.0 / freqRate
       }
 
-      // This is the buffered sound path - event creation happens below this 'if/else'
       let calculatedInterval
       if (frequencyValue === 0 && layerData.bufferBetweenSounds) {
-        // This check is specific to buffered sounds with freqRate = 0
-        calculatedInterval = 0
+        let jitter = randomNormal() * varianceValue
+        calculatedInterval = jitter
       } else {
-        calculatedInterval = frequencyValue + randomNormal() * varianceValue
-        if (calculatedInterval <= 0 && frequencyValue > 0) {
-          calculatedInterval = frequencyValue
-        } else if (calculatedInterval <= 0) {
-          calculatedInterval = 0.001 // Small positive interval
+        let jitter = randomNormal() * varianceValue
+        if (frequencyValue > 0) {
+          // Scale jitter if base interval is positive
+          jitter *= frequencyValue
         }
+        calculatedInterval = frequencyValue + jitter
       }
+
+      calculatedInterval = Math.max(0.001, calculatedInterval)
 
       let potentialNextEventStartTime = referenceTime + calculatedInterval
 
@@ -189,7 +183,7 @@ export function generateTimelineEvents(
         potentialNextEventStartTime <
           subBlockStartTime + config.scheduleGranularity &&
         (layerData.bufferBetweenSounds ||
-          potentialNextEventStartTime >= subBlockStartTime) // Second part of OR is always true if !bufferBetweenSounds
+          potentialNextEventStartTime >= subBlockStartTime)
 
       if (eventSchedulingCondition) {
         const selectedFileDetails = selectAndPrepareFile(
@@ -234,7 +228,6 @@ export function generateTimelineEvents(
           }
 
           if (layerData.bufferBetweenSounds && bufferTrackerKey) {
-            // This was correctly here
             lastEventEndTimes[layerName][bufferTrackerKey] =
               potentialNextEventStartTime + selectedFileDetails.duration
           }
@@ -248,26 +241,28 @@ export function generateTimelineEvents(
         }
       }
     } else {
-      // Non-buffered sounds (Option A: previousEventStartTime + Interval + TimeJitter)
-      // This block is executed for each setName if !layerData.bufferBetweenSounds
-
       let actualLastStartTime =
         layerLastScheduledEventStartTimes[layerName] &&
         layerLastScheduledEventStartTimes[layerName][setName] !== undefined
           ? layerLastScheduledEventStartTimes[layerName][setName]
-          : 0.0 // Should be found due to initialization in index.js
+          : 0
 
       const baseRate = directSetFrequencies ? directSetFrequencies[setName] : 0
       if (baseRate === undefined || baseRate <= 0) {
-        // console.warn(`Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`);
+        console.warn(
+          `Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`
+        )
         continue
       }
-      const currentInterval = config.frequencyUnit / baseRate // Assuming config.frequencyUnit is in seconds
-      const timeJitter = randomNormal() * (layerData.variance || 0)
+      const currentInterval = config.frequencyUnit / baseRate
+      const timeJitter =
+        randomNormal() * (layerData.variance || 0) * currentInterval
 
-      let potentialEventStartTime =
-        actualLastStartTime + currentInterval + timeJitter
-      potentialEventStartTime = Math.max(0, potentialEventStartTime) // Ensure not negative
+      let effectiveInterval = currentInterval + timeJitter
+      effectiveInterval = Math.max(0.001, effectiveInterval)
+
+      let potentialEventStartTime = actualLastStartTime + effectiveInterval
+      potentialEventStartTime = Math.max(0, potentialEventStartTime)
 
       if (
         potentialEventStartTime >= subBlockStartTime &&
@@ -331,7 +326,6 @@ export function generateTimelineEvents(
           }
         }
       }
-      // The main loop `for (const setName of setsToProcess)` continues, so no `continue` here.
     }
   }
   return { events, setToggled }

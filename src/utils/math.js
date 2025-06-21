@@ -24,6 +24,9 @@ export function randomNormal() {
   let u = 0, v = 0;
   while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
   while(v === 0) v = Math.random();
-  const z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+  let z = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+  // Clamp z to a reasonable range (e.g., +/- 7 standard deviations)
+  // to prevent extreme outliers from floating point issues or rare stats.
+  z = Math.max(-7.0, Math.min(7.0, z));
   return z;
 }
