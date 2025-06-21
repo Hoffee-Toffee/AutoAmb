@@ -99,15 +99,12 @@ export function generateTimelineEvents(
   lastPlayedFiles,
   setIndex,
   subBlockStartTime,
-  intensity,
   volume,
-  counts,
   chunkCounts,
   durations,
-  scaledFrequencies,
   sharedPosition,
   directSetFrequencies,
-  layerLastScheduledEventStartTimes, // Added
+  layerLastScheduledEventStartTimes,
   lastEventEndTimes,
   config
 ) {
@@ -248,26 +245,29 @@ export function generateTimelineEvents(
         }
       }
     } else {
-      // Non-buffered sounds (Option A: previousEventStartTime + Interval + TimeJitter)
-      // This block is executed for each setName if !layerData.bufferBetweenSounds
-
       let actualLastStartTime =
         layerLastScheduledEventStartTimes[layerName] &&
         layerLastScheduledEventStartTimes[layerName][setName] !== undefined
           ? layerLastScheduledEventStartTimes[layerName][setName]
-          : 0.0 // Should be found due to initialization in index.js
+          : 0
 
       const baseRate = directSetFrequencies ? directSetFrequencies[setName] : 0
       if (baseRate === undefined || baseRate <= 0) {
-        // console.warn(`Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`);
+        console.warn(
+          `Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`
+        )
         continue
       }
-      const currentInterval = config.frequencyUnit / baseRate // Assuming config.frequencyUnit is in seconds
+      const currentInterval = config.frequencyUnit / baseRate
       const timeJitter = randomNormal() * (layerData.variance || 0)
 
-      let potentialEventStartTime =
-        actualLastStartTime + currentInterval + timeJitter
-      potentialEventStartTime = Math.max(0, potentialEventStartTime) // Ensure not negative
+      let effectiveInterval = currentInterval + timeJitter
+      if (effectiveInterval <= 0) {
+        effectiveInterval = currentInterval || 0.001
+      }
+
+      let potentialEventStartTime = actualLastStartTime + effectiveInterval
+      potentialEventStartTime = Math.max(0, potentialEventStartTime)
 
       if (
         potentialEventStartTime >= subBlockStartTime &&
@@ -331,7 +331,6 @@ export function generateTimelineEvents(
           }
         }
       }
-      // The main loop `for (const setName of setsToProcess)` continues, so no `continue` here.
     }
   }
   return { events, setToggled }

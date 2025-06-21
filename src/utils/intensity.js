@@ -2,14 +2,7 @@
 import { poissonRandom } from './math.js'
 
 export function getIntensityForLayer(layerName, progress) {
-  // Example: intensity increases with progress for most layers
-  // 'breath' layer has a sinusoidal intensity pattern
-  if (layerName !== 'breath') {
-    // Linear increase, capped, ensuring it starts reasonably
-    return Math.min(2, 0.5 + progress * 1.5) // Example: 0.5 to 2.0
-  }
-  // Sinusoidal pattern for breath, ranging from 1 to 2 and back to 1
-  return 1 + Math.abs(Math.sin(progress * Math.PI))
+  return Math.min(2, progress * 2) // Example: 0 to 2.0
 }
 
 export function interpolateIntensity(layerData, intensity) {
@@ -30,7 +23,6 @@ export function interpolateIntensity(layerData, intensity) {
 }
 
 export function calculateFrequenciesAndCounts(
-  layerName,
   layerData,
   intensity,
   lowerKey,
@@ -76,15 +68,18 @@ export function calculateFrequenciesAndCounts(
 
     // Unified calculation for counts
     // Ensure freqPerScheduleUnit is not negative before sqrt or poissonRandom
-    const safeFreqPerScheduleUnit = Math.max(0, freqPerScheduleUnit);
+    const safeFreqPerScheduleUnit = Math.max(0, freqPerScheduleUnit)
 
-    const stdDev = Math.sqrt(safeFreqPerScheduleUnit); 
-    const rangeDelta = (layerData.variance || 0) * stdDev; // Use (layerData.variance || 0) to default undefined to 0
+    const stdDev = Math.sqrt(safeFreqPerScheduleUnit)
+    const rangeDelta = (layerData.variance || 0) * stdDev // Use (layerData.variance || 0) to default undefined to 0
 
-    const minN = Math.max(0, Math.floor(safeFreqPerScheduleUnit - rangeDelta));
-    const maxN = Math.ceil(safeFreqPerScheduleUnit + rangeDelta);
-    
-    counts[`${set}Events`] = Math.min(maxN, Math.max(minN, poissonRandom(safeFreqPerScheduleUnit)));
+    const minN = Math.max(0, Math.floor(safeFreqPerScheduleUnit - rangeDelta))
+    const maxN = Math.ceil(safeFreqPerScheduleUnit + rangeDelta)
+
+    counts[`${set}Events`] = Math.min(
+      maxN,
+      Math.max(minN, poissonRandom(safeFreqPerScheduleUnit))
+    )
   }
 
   return { frequencies, scaledFrequencies, counts }

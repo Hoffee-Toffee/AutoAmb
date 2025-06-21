@@ -16,10 +16,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function main() {
   const isPlanOnly = process.argv.includes('--plan-only')
+  const dashPad = '-'.repeat(5)
+  const pad = ' '.repeat(2)
 
-  const message = `----- AutoAmb ${
-    isPlanOnly ? '(PLAN ONLY MODE)' : ''
-  } -----\n`
+  const message = [
+    dashPad,
+    pad,
+    `AutoAmb ${isPlanOnly ? '(PLAN ONLY MODE)' : ''}`,
+    pad,
+    dashPad,
+    '\n',
+  ].join('')
+
   console.log(message)
   await generateSoundscape(mainConfig.config, mainConfig.layers, isPlanOnly)
 }
@@ -77,7 +85,6 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
 
         const { frequencies, scaledFrequencies, counts } =
           calculateFrequenciesAndCounts(
-            layerName,
             layerData,
             intensity,
             lowerKey,
@@ -93,6 +100,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           ...frequencies,
           ...scaledFrequencies,
           ...counts,
+          volume,
         })
 
         const { events, setToggled } = generateTimelineEvents(
@@ -103,16 +111,13 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           filesData[layerName].lastPlayedFiles,
           setIndices[layerName],
           subBlockStartTime,
-          intensity,
           volume,
-          counts,
           chunkCounts,
           filesData[layerName].durations,
-          scaledFrequencies,
           sharedPositions[layerName],
           frequencies,
-          lastEventEndTimes,
           layerLastScheduledEventStartTimes,
+          lastEventEndTimes,
           config
         )
 

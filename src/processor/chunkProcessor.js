@@ -54,17 +54,13 @@ export async function generateFilterComplex(
       const leftGain = event.pan !== undefined ? (1 - event.pan) / 2 : 0.5
       const rightGain = event.pan !== undefined ? (1 + event.pan) / 2 : 0.5
       let preprocessFilter = ''
-      let lastLabel = `${index}:a`
 
       if (channels === 'quad') {
         preprocessFilter = `pan=stereo|c0=c0+c2|c1=c1+c3[a${index}_pre]`
-        lastLabel = `a${index}_pre`
       } else if (channels === 'mono') {
         preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
-        lastLabel = `a${index}_pre`
       } else if (channels !== 'stereo') {
         preprocessFilter = `aformat=channel_layouts=stereo[a${index}_pre]`
-        lastLabel = `a${index}_pre`
       }
 
       const formatFilter = `aformat=channel_layouts=stereo[a${index}_fmt]`
