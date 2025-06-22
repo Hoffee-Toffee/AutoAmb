@@ -1,9 +1,8 @@
-// import ffmpeg from 'fluent-ffmpeg'; // Removed
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { ensureOutputDir } from './chunkProcessor.js'
-import { concatenateFilesCli } from '../utils/ffmpegCliUtil.js'
+import { concatenateFilesCli } from '../utils/ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outputDir = path.join(__dirname, '../../out')
@@ -39,8 +38,6 @@ export async function concatenateChunks(tempFiles, config) {
   const validTempFiles = tempFiles.filter((f) => f && typeof f === 'string')
   if (validTempFiles.length === 0) {
     console.error('No valid temporary files to concatenate after filtering.')
-    // Consider if this should throw an error or if returning is acceptable.
-    // Original code would have rejected a promise here.
     throw new Error('No valid temporary files to concatenate.')
   }
 
@@ -55,8 +52,6 @@ export async function concatenateChunks(tempFiles, config) {
       `Concatenation complete: ${outputFile}, size: ${stats.size} bytes`
     )
   } catch (error) {
-    // Error is already logged with details by concatenateFilesCli/spawnPromise
-    // console.error(`FFmpeg error during concatenation: ${error.message}`); // Redundant if already logged
-    throw error // Rethrow to allow main process to handle if necessary
+    throw error
   }
 }

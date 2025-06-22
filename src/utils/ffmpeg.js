@@ -1,6 +1,6 @@
 import { spawn } from 'child_process'
-// import ffmpegPathInstaller from '@ffmpeg-installer/ffmpeg';
-// import ffprobePathInstaller from '@ffprobe-installer/ffprobe';
+// import ffmpegPathInstaller from '@ffmpeg-installer/ffmpeg'
+// import ffprobePathInstaller from '@ffprobe-installer/ffprobe'
 
 // import ffmpegPath from 'ffmpeg-static'
 const ffmpegPath = 'C:\\Users\\Admin\\Downloads\\FFmpeg\\bin\\ffmpeg.exe'

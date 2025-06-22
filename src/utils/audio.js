@@ -5,7 +5,7 @@ import {
   getAudioDuration as getAudioDurationCli,
   getAudioChannels as getAudioChannelsCli,
   validateAudioFile as validateAudioFileCli,
-} from './ffmpegCliUtil.js'
+} from './ffmpeg.js'
 import { gaussianClamp } from './math.js'
 import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

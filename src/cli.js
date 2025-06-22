@@ -51,17 +51,25 @@ const commands = {
     flags: [
       ['--fresh', '-f'],
       ['--plan-only', '-p'],
+      ['--open', '-o'],
     ],
     description: 'Run AutoAmb',
     action: async (args) => {
       const fresh = args.includes('--fresh') || args.includes('-f')
       const planOnly = args.includes('--plan-only') || args.includes('-p')
+      const open = args.includes('--open') || args.includes('-o')
       const cmdArgs = []
       if (planOnly) cmdArgs.push('--plan-only')
       if (fresh) cmdArgs.push('--no-cache')
 
       try {
         await runAutoAmb(cmdArgs)
+        console.log(chalk.green('\nOutput file generated successfully.\n'))
+
+        if (open) {
+          console.log(chalk.blue('Opening output.mp3 in Chrome...\n'))
+          await openFile()
+        }
       } catch (error) {
         console.error(chalk.red(`Error running AutoAmb: ${error.message}`))
       }
@@ -69,10 +77,10 @@ const commands = {
   },
   open: {
     aliases: ['o'],
-    description: 'Open output.mp3 in VS Code',
+    description: 'Open output.mp3 in Chrome',
     action: async () => {
       try {
-        console.log(chalk.blue('Opening output.mp3 in VS Code...'))
+        console.log(chalk.blue('Opening output.mp3 in Chrome...'))
         await openFile()
         console.log(chalk.green('File opened successfully.'))
       } catch (error) {

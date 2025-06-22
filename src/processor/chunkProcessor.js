@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getAudioDuration, getAudioChannels } from '../utils/audio.js'
-import { processAudioChunk as processAudioChunkCli } from '../utils/ffmpegCliUtil.js'
+import { processAudioChunk as processAudioChunkCli } from '../utils/ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outputDir = path.join(__dirname, '../../out')

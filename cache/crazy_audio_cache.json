@@ -1,0 +1,29 @@
+{
+  "validFiles": {
+    "files": [
+      "observation_z01_15.ogg",
+      "observation_z01_16.ogg",
+      "observation_z01_17.ogg",
+      "observation_z01_18.ogg"
+    ]
+  },
+  "playCounts": {
+    "files": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "lastPlayedFiles": {
+    "files": null
+  },
+  "durations": {
+    "files": [
+      33.361958,
+      21.961958,
+      19.465958,
+      28.777958
+    ]
+  }
+}

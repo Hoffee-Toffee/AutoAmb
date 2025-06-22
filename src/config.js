@@ -35,7 +35,7 @@ export default {
         1: { volume: 1, solo_frequency: 1 / 2, norm_frequency: 1 / 10 },
         2: { volume: 3, solo_frequency: 1 / 2, norm_frequency: 1 / 2 },
       },
-      variance: 0.1,
+      variance: 0,
       directionality: 'unique',
       pitchSpeedRange: [0.9, 1.1],
     },
