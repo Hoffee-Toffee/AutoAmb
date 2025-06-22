@@ -7,6 +7,8 @@ import {
   validateAudioFile as validateAudioFileCli,
 } from './ffmpegCliUtil.js'
 import { gaussianClamp } from './math.js'
+import { fileURLToPath } from 'url'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export async function getAudioDuration(filePath) {
   try {
@@ -93,7 +95,7 @@ export async function validateAudioFile(filePath) {
 }
 
 export async function loadAudioFiles(layerName, layerData, config) {
-  const cacheDir = path.join(config.audioDir, '..', 'cache')
+  const cacheDir = path.join(__dirname, '..', '..', 'cache')
   const cacheFile = path.join(cacheDir, `${layerName}_audio_cache.json`)
   const useCache = !process.argv.includes('--no-cache')
 

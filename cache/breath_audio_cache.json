@@ -1,0 +1,54 @@
+{
+  "validFiles": {
+    "in": [
+      "isac_vx_breathing_hlmt01_00.ogg",
+      "isac_vx_breathing_hlmt01_01.ogg",
+      "isac_vx_breathing_hlmt01_02.ogg",
+      "isac_vx_breathing_hlmt01_03.ogg",
+      "isac_vx_breathing_hlmt01_04.ogg"
+    ],
+    "out": [
+      "isac_vx_breathing_hlmt01_05.ogg",
+      "isac_vx_breathing_hlmt01_06.ogg",
+      "isac_vx_breathing_hlmt01_07.ogg",
+      "isac_vx_breathing_hlmt01_08.ogg",
+      "isac_vx_breathing_hlmt01_09.ogg"
+    ]
+  },
+  "playCounts": {
+    "in": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "out": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "lastPlayedFiles": {
+    "in": null,
+    "out": null
+  },
+  "durations": {
+    "in": [
+      1.537958,
+      1.729958,
+      1.489958,
+      1.345958,
+      1.345958
+    ],
+    "out": [
+      2.305958,
+      2.281958,
+      2.761958,
+      2.545958,
+      1.945958
+    ]
+  }
+}

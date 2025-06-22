@@ -1,0 +1,60 @@
+{
+  "validFiles": {
+    "solo": [
+      "water_drips_04.ogg",
+      "water_drips_05.ogg",
+      "water_drips_06.ogg",
+      "water_drips_07.ogg",
+      "water_drips_08.ogg",
+      "water_drips_09.ogg",
+      "water_drips_10.ogg",
+      "water_drips_11.ogg"
+    ],
+    "norm": [
+      "water_drips_00.ogg",
+      "water_drips_01.ogg",
+      "water_drips_02.ogg",
+      "water_drips_03.ogg"
+    ]
+  },
+  "playCounts": {
+    "solo": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "norm": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "lastPlayedFiles": {
+    "solo": null,
+    "norm": null
+  },
+  "durations": {
+    "solo": [
+      1.009958,
+      1.369958,
+      1.417958,
+      1.489958,
+      1.009958,
+      1.513958,
+      1.441958,
+      1.609958
+    ],
+    "norm": [
+      2.569958,
+      1.585958,
+      2.353958,
+      2.449958
+    ]
+  }
+}
