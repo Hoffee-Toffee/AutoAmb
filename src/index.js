@@ -38,6 +38,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
     const intensityLog = []
     let timeline = []
     const lastEventEndTimes = {}
+    const layerNextEventTimes = {}
     const chunkCounts = Object.keys(layers).reduce((acc, layer) => {
       acc[layer] = Array(
         Math.ceil(config.duration / config.chunkDuration)
@@ -118,7 +119,8 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           frequencies,
           layerLastScheduledEventStartTimes,
           lastEventEndTimes,
-          config
+          config,
+          layerNextEventTimes
         )
 
         timeline.push(...events)

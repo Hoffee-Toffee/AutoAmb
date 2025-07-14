@@ -1,0 +1,30 @@
+{
+  "validFiles": {
+    "systolic": [
+      "marker_heartbeat_01_boom_ba_seq_00.ogg"
+    ],
+    "diastolic": [
+      "marker_heartbeat_01_boom_ba_seq_01.ogg"
+    ]
+  },
+  "playCounts": {
+    "systolic": [
+      0
+    ],
+    "diastolic": [
+      0
+    ]
+  },
+  "lastPlayedFiles": {
+    "systolic": null,
+    "diastolic": null
+  },
+  "durations": {
+    "systolic": [
+      0.289958
+    ],
+    "diastolic": [
+      0.289958
+    ]
+  }
+}

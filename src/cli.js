@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url'
 import chalk from 'chalk'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const outputDir = path.join(__dirname, '..', 'out')
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -88,6 +89,114 @@ const commands = {
       }
     },
   },
+  logs: {
+    aliases: ['l'],
+    description:
+      'Parse timeline and intensity logs and create JSON files for each layer',
+    action: async () => {
+      try {
+        const timelineLogFile = path.join(outputDir, 'timeline_log.json')
+        const intensityLogFile = path.join(outputDir, 'intensity_log.json')
+
+        // Process timeline log
+        let timelineLogData = []
+        try {
+          await fs.access(timelineLogFile)
+          timelineLogData = JSON.parse(
+            await fs.readFile(timelineLogFile, 'utf8')
+          )
+        } catch (error) {
+          console.warn(
+            chalk.yellow(
+              `Warning: Timeline log file ${timelineLogFile} not found`
+            )
+          )
+        }
+
+        // Process intensity log
+        let intensityLogData = []
+        try {
+          await fs.access(intensityLogFile)
+          intensityLogData = JSON.parse(
+            await fs.readFile(intensityLogFile, 'utf8')
+          )
+        } catch (error) {
+          console.warn(
+            chalk.yellow(
+              `Warning: Intensity log file ${intensityLogFile} not found`
+            )
+          )
+        }
+
+        // Get unique layers from both logs
+        const layers = [
+          ...new Set(
+            [
+              ...timelineLogData.map((entry) => entry.layer),
+              ...intensityLogData.map((entry) => entry.layer),
+            ].filter((layer) => layer)
+          ),
+        ]
+
+        // Generate JSON files for each layer
+        for (const layer of layers) {
+          const timelineEntries = timelineLogData.filter(
+            (entry) => entry.layer === layer
+          )
+          const intensityEntries = intensityLogData.filter(
+            (entry) => entry.layer === layer
+          )
+
+          const timelineOutputFile = path.join(
+            outputDir,
+            `${layer}_timeline_log.json`
+          )
+          const intensityOutputFile = path.join(
+            outputDir,
+            `${layer}_intensity_log.json`
+          )
+
+          if (timelineEntries.length > 0) {
+            await fs.writeFile(
+              timelineOutputFile,
+              JSON.stringify(timelineEntries, null, 2)
+            )
+            console.log(
+              chalk.green(
+                `Generated ${timelineOutputFile} with ${timelineEntries.length} entries`
+              )
+            )
+          } else {
+            console.warn(chalk.yellow(`No timeline entries for layer ${layer}`))
+          }
+
+          if (intensityEntries.length > 0) {
+            await fs.writeFile(
+              intensityOutputFile,
+              JSON.stringify(intensityEntries, null, 2)
+            )
+            console.log(
+              chalk.green(
+                `Generated ${intensityOutputFile} with ${intensityEntries.length} entries`
+              )
+            )
+          } else {
+            console.warn(
+              chalk.yellow(`No intensity entries for layer ${layer}`)
+            )
+          }
+        }
+
+        if (layers.length === 0) {
+          console.warn(chalk.yellow('No valid layers found in logs'))
+        } else {
+          console.log(chalk.green('\nLog files processed successfully.\n'))
+        }
+      } catch (error) {
+        console.error(chalk.red(`Error processing logs: ${error.message}`))
+      }
+    },
+  },
   clear: {
     aliases: ['c'],
     description: 'Clear the terminal',
@@ -137,10 +246,9 @@ async function runAutoAmb(args) {
 async function openFile() {
   return new Promise((resolve, reject) => {
     rl.pause()
-    const filePath = path.join(__dirname, '..', 'out', 'output.mp3')
+    const filePath = path.join(outputDir, 'output.mp3')
     const fileUrl = `file://${path.resolve(filePath).replace(/\\/g, '/')}`
 
-    // Check if file exists
     fs.access(filePath)
       .catch(() => {
         rl.resume()
@@ -162,7 +270,7 @@ async function openFile() {
 
         const child = spawn(cmd, args, {
           stdio: ['ignore', process.stdout, process.stderr],
-          shell: true, // Use shell for cross-platform compatibility
+          shell: true,
         })
 
         child.on('error', (error) => {
@@ -181,7 +289,6 @@ async function openFile() {
   })
 }
 
-// Global SIGINT handler
 process.on('SIGINT', () => {
   console.log(chalk.green('\nExiting AutoAmb CLI'))
   rl.close()
