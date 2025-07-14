@@ -2,8 +2,8 @@ export default {
   config: {
     audioDir: 'C:\\Users\\Admin\\Music\\Amb Cats',
     outputFile: 'output.mp3',
-    duration: 60 * 5,
-    chunkDuration: 30,
+    duration: 15 * 10,
+    chunkDuration: 15,
     scheduleGranularity: 0.01,
     frequencyUnit: 1,
     volume: 2,
@@ -39,56 +39,59 @@ export default {
     //   directionality: 'unique',
     //   pitchSpeedRange: [0.9, 1.1],
     // },
-    // breath: {
-    //   category: 'isc',
-    //   volume: 5,
-    //   sets: {
-    //     in: 'isac_vx_breathing_hlmt01_(0[0-4]).ogg',
-    //     out: 'isac_vx_breathing_hlmt01_(0[5-9]).ogg',
-    //     // asphyx: 'isac_vx_breath_asphyxiation_hlmt01_\\d{2}.ogg',
-    //   },
-    //   intensity: {
-    //     0: { volume: 1, frequency: 1 / 2.5 },
-    //     // 1: { volume: 1, frequency: 1 },
-    //     2: { volume: 5, frequency: 2 },
-    //     // 1: { volume: 2, frequency: 1 / 4, asphyx_frequency: 0 },
-    //     // 1.5: { volume: 2, frequency: 1 / 2.5 },
-    //     // 2: { volume: 3, frequency: 0, asphyx_frequency: 1 / 2 },
-    //   },
-    //   variance: 0,
-    //   directionality: 'none',
-    //   cycleThrough: 'sets',
-    //   bufferBetweenSounds: true,
-    // },
-    heartbeat: {
+    breath: {
       category: 'isc',
       volume: 5,
+      sets: {
+        in: 'isac_vx_breathing_hlmt01_(0[0-4]).ogg',
+        out: 'isac_vx_breathing_hlmt01_(0[5-9]).ogg',
+        // asphyx: 'isac_vx_breath_asphyxiation_hlmt01_\\d{2}.ogg',
+      },
+      intensity: {
+        0: { volume: 1, frequency: 1 / 2.5 },
+        // 1: { volume: 1, frequency: 1 },
+        2: { volume: 5, frequency: 2 },
+        // 1: { volume: 2, frequency: 1 / 4, asphyx_frequency: 0 },
+        // 1.5: { volume: 2, frequency: 1 / 2.5 },
+        // 2: { volume: 3, frequency: 0, asphyx_frequency: 1 / 2 },
+      },
+      variance: 0,
+      directionality: 'none',
+      cycleThrough: 'sets',
+      bufferBetweenSounds: true,
+    },
+    heartbeat: {
+      category: 'isc',
+      volume: 1,
       sets: {
         systolic: 'marker_heartbeat_01_boom_ba_seq_00.ogg',
         diastolic: 'marker_heartbeat_01_boom_ba_seq_01.ogg',
       },
       intensity: {
-        // With a normal rhythm ratio of 40:60, we can divide the BPM by 24 (systolic) or 36 (diastolic) to get its frequency
-        0: {
-          volume: 1,
-          systolic_frequency: 15 / 24,
-          diastolic_frequency: 15 / 36,
-        },
         0.5: {
+          volume: 1,
+          systolic_frequency: 1 / 0.6,
+          diastolic_frequency: 1 / 0.4,
+        },
+        1: {
           volume: 3,
-          systolic_frequency: 15 / 24,
-          diastolic_frequency: 15 / 36,
+          systolic_frequency: 1 / 0.425,
+          diastolic_frequency: 1 / 0.325,
+        },
+        1.5: {
+          volume: 6,
+          systolic_frequency: 1 / 0.32,
+          diastolic_frequency: 1 / 0.28,
         },
         2: {
           volume: 10,
-          systolic_frequency: 35 / 24,
-          diastolic_frequency: 35 / 36,
+          systolic_frequency: 1 / 0.18,
+          diastolic_frequency: 1 / 0.22,
         },
       },
       variance: 0,
       directionality: 'none',
       cycleThrough: 'sets',
-      // bufferBetweenSounds: true,
     },
     // room: {
     //   category: 'amb',
