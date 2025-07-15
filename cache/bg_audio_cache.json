@@ -1,7 +1,7 @@
 {
   "validFiles": {
     "main": [
-      "audio_pa_02_04.exa.ogg"
+      "amb_mainframe_inactive.exa.ogg"
     ]
   },
   "lastPlayedFiles": {
@@ -9,7 +9,7 @@
   },
   "durations": {
     "main": [
-      23.785
+      11.857625
     ]
   }
 }

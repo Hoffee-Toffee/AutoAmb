@@ -1,0 +1,33 @@
+{
+  "validFiles": {
+    "norm": [
+      "amb_generic_room_tone_01.exa.ogg",
+      "amb_generic_room_tone_02.exa.ogg",
+      "amb_generic_room_tone_03.exa.ogg",
+      "amb_generic_room_tone_04.exa.ogg",
+      "amb_generic_room_tone_05.exa.ogg",
+      "amb_generic_room_tone_06.exa.ogg",
+      "amb_generic_room_tone_07.exa.ogg",
+      "amb_generic_room_tone_08.exa.ogg",
+      "amb_generic_room_tone_09.exa.ogg",
+      "amb_generic_room_tone_10.exa.ogg"
+    ]
+  },
+  "lastPlayedFiles": {
+    "norm": null
+  },
+  "durations": {
+    "norm": [
+      16,
+      13,
+      90,
+      98,
+      19,
+      19,
+      19,
+      19,
+      19,
+      19
+    ]
+  }
+}

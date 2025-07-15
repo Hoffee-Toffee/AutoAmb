@@ -9,6 +9,29 @@ import {
 import { gaussianClamp } from './math.js'
 import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+export function normalizeSets(sets) {
+  if (typeof sets === 'string') {
+    return { main: [sets] }
+  }
+  if (Array.isArray(sets)) {
+    return { main: sets }
+  }
+  if (typeof sets === 'object' && sets !== null) {
+    const newSets = {}
+    for (const key in sets) {
+      if (Object.prototype.hasOwnProperty.call(sets, key)) {
+        const value = sets[key]
+        if (typeof value === 'string') {
+          newSets[key] = [value]
+        } else if (Array.isArray(value)) {
+          newSets[key] = value
+        }
+      }
+    }
+    return newSets
+  }
+  return {}
+}
 
 export async function getAudioDuration(filePath) {
   try {
@@ -109,14 +132,17 @@ export async function loadAudioFiles(layerName, layerData, config) {
       // Validate cache structure
       if (
         parsedCache.validFiles &&
-        parsedCache.playCounts &&
         parsedCache.lastPlayedFiles &&
         parsedCache.durations &&
         Object.keys(parsedCache.validFiles).every((set) =>
           Object.keys(layerData.sets).includes(set)
         )
       ) {
-        return parsedCache
+        const playCounts = {}
+        for (const set in parsedCache.validFiles) {
+          playCounts[set] = {}
+        }
+        return { ...parsedCache, playCounts }
       } else {
         console.warn(`Invalid cache for '${layerName}', regenerating...`)
       }
@@ -136,12 +162,16 @@ export async function loadAudioFiles(layerName, layerData, config) {
   try {
     const filesInDir = await fs.readdir(layerDir)
     for (const set of sets) {
-      const setFilesRegex = new RegExp(`^${layerData.sets[set]}$`)
-      const setFiles = filesInDir.filter((file) => setFilesRegex.test(file))
+      const regexes = layerData.sets[set]
+      const setFiles = filesInDir.filter((file) =>
+        regexes.some((regex) => new RegExp(`^${regex}$`).test(file))
+      )
 
       if (setFiles.length === 0) {
         console.warn(
-          `No files found for ${layerName} set: ${set} in directory ${layerDir} with regex ${layerData.sets[set]}`
+          `No files found for ${layerName} set: ${set} in directory ${layerDir} with regexes ${regexes.join(
+            ', '
+          )}`
         )
       }
 
@@ -170,7 +200,7 @@ export async function loadAudioFiles(layerName, layerData, config) {
         console.warn(`No valid files found for ${layerName} set: ${set}`)
       }
 
-      playCounts[set] = new Array(validFiles[set].length).fill(0)
+      playCounts[set] = {}
       lastPlayedFiles[set] = null
     }
 
@@ -179,11 +209,7 @@ export async function loadAudioFiles(layerName, layerData, config) {
       await fs.mkdir(cacheDir, { recursive: true })
       await fs.writeFile(
         cacheFile,
-        JSON.stringify(
-          { validFiles, playCounts, lastPlayedFiles, durations },
-          null,
-          2
-        )
+        JSON.stringify({ validFiles, lastPlayedFiles, durations }, null, 2)
       )
       console.log(`Saved audio data cache for ${layerName} to ${cacheFile}`)
     } catch (error) {

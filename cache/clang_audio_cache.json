@@ -1,6 +1,6 @@
 {
   "validFiles": {
-    "air": [
+    "main": [
       "amb_air_release_00.ogg",
       "amb_air_release_01.ogg",
       "amb_air_release_02.ogg",
@@ -12,9 +12,7 @@
       "amb_air_release_08.ogg",
       "amb_air_release_09.ogg",
       "amb_air_release_10.ogg",
-      "amb_air_release_11.ogg"
-    ],
-    "scuffles": [
+      "amb_air_release_11.ogg",
       "amb_quadshot_airvent_scuffles_01.exa.ogg",
       "amb_quadshot_airvent_scuffles_02.exa.ogg",
       "amb_quadshot_airvent_scuffles_03.exa.ogg",
@@ -26,9 +24,7 @@
       "amb_quadshot_airvent_scuffles_09.exa.ogg",
       "amb_quadshot_airvent_scuffles_10.exa.ogg",
       "amb_quadshot_airvent_scuffles_11.exa.ogg",
-      "amb_quadshot_airvent_scuffles_12.exa.ogg"
-    ],
-    "pipe": [
+      "amb_quadshot_airvent_scuffles_12.exa.ogg",
       "amb_quadshot_pipe_stress_lite_a_01.exa.ogg",
       "amb_quadshot_pipe_stress_lite_a_02.exa.ogg",
       "amb_quadshot_pipe_stress_lite_a_03.exa.ogg",
@@ -64,78 +60,11 @@
       "amb_quadshot_pipe_stress_lite_d_17.exa.ogg"
     ]
   },
-  "playCounts": {
-    "air": [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "scuffles": [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ],
-    "pipe": [
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ]
-  },
   "lastPlayedFiles": {
-    "air": null,
-    "scuffles": null,
-    "pipe": null
+    "main": null
   },
   "durations": {
-    "air": [
+    "main": [
       8.161958,
       12.793958,
       8.161958,
@@ -147,9 +76,7 @@
       5.185958,
       6.865958,
       4.897958,
-      8.041958
-    ],
-    "scuffles": [
+      8.041958,
       5.643781,
       5.415625,
       6.478875,
@@ -161,9 +88,7 @@
       7.481031,
       6.436313,
       8.531719,
-      4.701156
-    ],
-    "pipe": [
+      4.701156,
       9.462344,
       8.645813,
       10.326938,

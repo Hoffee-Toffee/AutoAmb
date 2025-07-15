@@ -2,7 +2,11 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import mainConfig from './config.js'
-import { loadAudioFiles, generatePosition } from './utils/audio.js'
+import {
+  loadAudioFiles,
+  generatePosition,
+  normalizeSets,
+} from './utils/audio.js'
 import {
   getIntensityForLayer,
   interpolateIntensity,
@@ -54,6 +58,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
 
     console.log(`Loading audio data...`)
     for (const [layerName, layerData] of Object.entries(layers)) {
+      layerData.sets = normalizeSets(layerData.sets)
       filesData[layerName] = await loadAudioFiles(layerName, layerData, config)
       if (layerData.directionality === 'shared')
         sharedPositions[layerName] = generatePosition()
