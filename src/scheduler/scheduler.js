@@ -193,7 +193,7 @@ export function generateTimelineEvents(
           : 0
       let interval = freqRate > 0 ? config.frequencyUnit / freqRate : 0
       const varianceValue = layerData.variance || 0
-      const jitter = randomNormal() * varianceValue * (interval || 1.0)
+      const jitter = Math.random() * varianceValue
       interval = Math.max(0.001, interval + jitter)
 
       nextEventTime += interval
@@ -260,14 +260,9 @@ export function generateTimelineEvents(
 
         let calculatedInterval
         if (frequencyValue === 0 && layerData.bufferBetweenSounds) {
-          let jitter = randomNormal() * varianceValue
-          calculatedInterval = jitter
+          calculatedInterval = Math.random() * varianceValue
         } else {
-          let jitter = randomNormal() * varianceValue
-          if (frequencyValue > 0) {
-            jitter *= frequencyValue
-          }
-          calculatedInterval = frequencyValue + jitter
+          calculatedInterval = frequencyValue + Math.random() * varianceValue
         }
 
         calculatedInterval = Math.max(0.001, calculatedInterval)
@@ -352,21 +347,29 @@ export function generateTimelineEvents(
           continue
         }
         const currentInterval = config.frequencyUnit / baseRate
-        const timeJitter =
-          randomNormal() * (layerData.variance || 0) * currentInterval
-
-        let effectiveInterval = currentInterval + timeJitter
+        const varianceValue = layerData.variance || 0
+        const jitter = Math.random() * varianceValue
+        let effectiveInterval = currentInterval + jitter
         effectiveInterval = Math.max(0.001, effectiveInterval)
 
         let potentialEventStartTime = actualLastStartTime + effectiveInterval
         potentialEventStartTime = Math.max(0, potentialEventStartTime)
 
+        const tolerance = Math.max(0.001, varianceValue * 0.5)
         if (
-          potentialEventStartTime >= subBlockStartTime &&
+          potentialEventStartTime >= subBlockStartTime - tolerance &&
           potentialEventStartTime <
-            subBlockStartTime + config.scheduleGranularity &&
+            subBlockStartTime + config.scheduleGranularity + tolerance &&
           potentialEventStartTime < config.duration
         ) {
+          const adjustedStartTime = Math.max(
+            subBlockStartTime,
+            Math.min(
+              potentialEventStartTime,
+              subBlockStartTime + config.scheduleGranularity
+            )
+          )
+
           const selectedFileDetails = selectAndPrepareFile(
             validFiles[setName],
             playCounts[setName],
@@ -380,13 +383,12 @@ export function generateTimelineEvents(
 
           if (
             selectedFileDetails &&
-            potentialEventStartTime + selectedFileDetails.duration <=
-              config.duration
+            adjustedStartTime + selectedFileDetails.duration <= config.duration
           ) {
             const event = createAudioEvent(
               selectedFileDetails.path,
               selectedFileDetails.name,
-              potentialEventStartTime,
+              adjustedStartTime,
               selectedFileDetails.duration,
               volume,
               layerName,
@@ -397,12 +399,12 @@ export function generateTimelineEvents(
             events.push(event)
 
             layerLastScheduledEventStartTimes[layerName][setName] =
-              potentialEventStartTime
+              adjustedStartTime
 
             lastPlayedFiles[setName] = selectedFileDetails.name
 
             const chunkIndex = Math.floor(
-              potentialEventStartTime / config.chunkDuration
+              adjustedStartTime / config.chunkDuration
             )
             if (
               chunkCounts &&
@@ -420,9 +422,22 @@ export function generateTimelineEvents(
             }
           }
         }
+
+        if (
+          potentialEventStartTime <=
+          subBlockStartTime + config.scheduleGranularity
+        ) {
+          const intervalsToAdvance = Math.ceil(
+            (subBlockStartTime +
+              config.scheduleGranularity -
+              actualLastStartTime) /
+              effectiveInterval
+          )
+          layerLastScheduledEventStartTimes[layerName][setName] =
+            actualLastStartTime + intervalsToAdvance * effectiveInterval
+        }
       }
     }
   }
-
   return { events, setToggled }
 }

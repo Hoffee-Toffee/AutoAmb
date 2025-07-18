@@ -1,0 +1,25 @@
+{
+  "validFiles": {
+    "main": [
+      "audio_pa_03_01.exa.ogg",
+      "audio_pa_03_02.exa.ogg",
+      "audio_pa_03_03.exa.ogg",
+      "audio_pa_03_04.exa.ogg",
+      "audio_pa_03_05.exa.ogg",
+      "audio_pa_03_06.exa.ogg"
+    ]
+  },
+  "lastPlayedFiles": {
+    "main": null
+  },
+  "durations": {
+    "main": [
+      23.42225,
+      22.094094,
+      12.7,
+      19.878781,
+      22.138531,
+      17.298125
+    ]
+  }
+}
