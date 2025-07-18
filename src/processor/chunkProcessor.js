@@ -29,6 +29,7 @@ export async function generateFilterComplex(
   const filters = await Promise.all(
     allEvents.map(async (event, index) => {
       const duration = event.duration ?? (await getAudioDuration(event.file))
+      const processingStartTime = Date.now()
       const delay =
         event.start === chunkStartTime
           ? 0
@@ -48,6 +49,7 @@ export async function generateFilterComplex(
         dist: event.dist,
         offset: event.offset || 0,
         duration,
+        processingTime: Date.now() - processingStartTime,
       })
 
       const channels = await getAudioChannels(event.file)

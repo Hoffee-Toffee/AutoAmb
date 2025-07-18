@@ -12,6 +12,7 @@ import {
   interpolateIntensity,
   calculateFrequenciesAndCounts,
 } from './utils/intensity.js'
+import { PerfLog, logPerformanceSummary } from './utils/logging.js'
 import { generateTimelineEvents } from './scheduler/scheduler.js'
 import { processChunk } from './processor/chunkProcessor.js'
 import { concatenateChunks } from './processor/chunkJoiner.js'
@@ -37,6 +38,7 @@ async function main() {
 }
 
 async function generateSoundscape(config, layers, isPlanOnly = false) {
+  const perfLog = new PerfLog()
   try {
     const filesData = {}
     const intensityLog = []
@@ -74,6 +76,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
     }
     console.log(`Cache loaded.\n\n`)
 
+    perfLog.start('scheduler')
     const subBlocks = Math.floor(config.duration / config.scheduleGranularity)
     for (let i = 0; i < subBlocks; i++) {
       const subBlockStartTime = i * config.scheduleGranularity
@@ -147,6 +150,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           }
       }
     }
+    perfLog.end('scheduler')
 
     console.log('Event counts per chunk (before processing):', chunkCounts)
     timeline.sort((a, b) => a.start - b.start)
@@ -170,6 +174,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
         path.join(outDir, 'timeline_log.json'),
         JSON.stringify(timelineLog, null, 2)
       )
+      logPerformanceSummary(perfLog, isPlanOnly)
       return
     }
 
@@ -179,6 +184,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
     let carryOverEvents = []
 
     for (let i = 0; i < totalChunks; i++) {
+      perfLog.start('processor')
       const chunkStartTime = i * config.chunkDuration
       const chunkEndTime = Math.min(
         chunkStartTime + config.chunkDuration,
@@ -212,6 +218,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
       if (tempFile) tempFiles.push(tempFile)
       timelineLog.push(...chunkTimelineLog)
       carryOverEvents = nextChunkEvents
+      perfLog.end('processor', chunkEventsInScope.length)
     }
 
     await fs.writeFile(
@@ -233,6 +240,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
         )
     }
 
+    logPerformanceSummary(perfLog, isPlanOnly)
     console.log(`Soundscape audio generated: ${config.outputFile}`)
   } catch (error) {
     console.error(`Error generating soundscape: ${error.message}`)
