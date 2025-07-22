@@ -8,7 +8,6 @@ import {
   normalizeSets,
 } from './utils/audio.js'
 import {
-  getIntensityForLayer,
   interpolateIntensity,
   calculateFrequenciesAndCounts,
 } from './utils/intensity.js'
@@ -16,6 +15,12 @@ import { PerfLog, logPerformanceSummary } from './utils/logging.js'
 import { generateTimelineEvents } from './scheduler/scheduler.js'
 import { processChunk } from './processor/chunkProcessor.js'
 import { concatenateChunks } from './processor/chunkJoiner.js'
+import {
+  initializeDirector,
+  updateActiveLayers,
+  getIntensity,
+  getActiveLayers,
+} from './director/director.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -77,13 +82,28 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
     console.log(`Cache loaded.\n\n`)
 
     perfLog.start('scheduler')
+    const director = initializeDirector(layers, config)
+    const { activeLayers, layerActivationQueue } = director
     const subBlocks = Math.floor(config.duration / config.scheduleGranularity)
     for (let i = 0; i < subBlocks; i++) {
       const subBlockStartTime = i * config.scheduleGranularity
-      const progress = subBlockStartTime / config.duration
+      updateActiveLayers(
+        layers,
+        config,
+        activeLayers,
+        layerActivationQueue,
+        subBlockStartTime
+      )
+      const activeLayerNames = getActiveLayers(activeLayers)
 
-      for (const [layerName, layerData] of Object.entries(layers)) {
-        const intensity = getIntensityForLayer(layerName, progress)
+      for (const layerName of activeLayerNames) {
+        const layerData = layers[layerName]
+        const intensity = getIntensity(
+          layers,
+          activeLayers,
+          layerName,
+          subBlockStartTime
+        )
         const { lowerKey, upperKey, weight } = interpolateIntensity(
           layerData,
           intensity
