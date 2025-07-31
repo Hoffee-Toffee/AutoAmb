@@ -132,6 +132,12 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           volume,
         })
 
+        const frequenciesAndVolumes = {}
+        for (const setName of Object.keys(layerData.sets)) {
+          frequenciesAndVolumes[`${setName}_frequency`] = frequencies[`${setName}_frequency`]
+          frequenciesAndVolumes[`${setName}_volume`] = layerData.intensity[lowerKey][`${setName}_volume`] || layerData[`${setName}_volume`] || 1
+        }
+
         const { events, setToggled } = generateTimelineEvents(
           layerName,
           layerData,
@@ -144,7 +150,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           chunkCounts,
           filesData[layerName].durations,
           sharedPositions[layerName],
-          frequencies,
+          frequenciesAndVolumes,
           layerLastScheduledEventStartTimes,
           lastEventEndTimes,
           config,
@@ -154,7 +160,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
         timeline.push(...events)
 
         if (setToggled)
-          switch (layerData.cycleThrough) {
+          switch (layerData.cycleMode) {
             case 'sets':
               setIndices[layerName] =
                 (setIndices[layerName] + 1) % Object.keys(layerData.sets).length
@@ -181,6 +187,17 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
       path.join(outDir, 'intensity_log.json'),
       JSON.stringify(intensityLog, null, 2)
     )
+
+    const getIntensityAtTime = (layerName, time) => {
+      const relevantEntries = intensityLog.filter(
+        entry => entry.layer === layerName && entry.time <= time
+      )
+      if (relevantEntries.length === 0) return 0
+      const latestEntry = relevantEntries.reduce((prev, current) =>
+        prev.time > current.time ? prev : current
+      )
+      return latestEntry.intensity
+    }
 
     if (isPlanOnly) {
       const timelineLog = timeline.map((event) => ({
@@ -233,7 +250,8 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
         chunkStartTime,
         chunkEndTime,
         carryOverEvents,
-        config
+        config,
+        getIntensityAtTime
       )
       if (tempFile) tempFiles.push(tempFile)
       timelineLog.push(...chunkTimelineLog)

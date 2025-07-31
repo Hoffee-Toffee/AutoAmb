@@ -1,0 +1,36 @@
+{
+  "validFiles": {
+    "0": [
+      "37. Ch03 Outer Decon Room 01.mp3"
+    ],
+    "1": [
+      "38. Ch03 Outer Decon Room 02.mp3"
+    ],
+    "2": [
+      "39. Ch03 Outer Decon Room 03.mp3"
+    ],
+    "3": [
+      "40. Ch03 Outer Decon Room 04.mp3"
+    ]
+  },
+  "lastPlayedFiles": {
+    "0": null,
+    "1": null,
+    "2": null,
+    "3": null
+  },
+  "durations": {
+    "0": [
+      86.04
+    ],
+    "1": [
+      86.04
+    ],
+    "2": [
+      86.04
+    ],
+    "3": [
+      86.04
+    ]
+  }
+}

@@ -21,7 +21,8 @@ export async function generateFilterComplex(
   chunkStartTime,
   config,
   chunkIndex,
-  actualChunkDuration
+  actualChunkDuration,
+  getIntensityAtTime
 ) {
   const eventTimes = []
   const timelineLogEntries = []
@@ -30,16 +31,25 @@ export async function generateFilterComplex(
     allEvents.map(async (event, index) => {
       const duration = event.duration ?? (await getAudioDuration(event.file))
       const processingStartTime = Date.now()
-      const delay =
-        event.start === chunkStartTime
-          ? 0
-          : Math.max(0, event.start - chunkStartTime + (event.offset || 0))
+      const delay = event.isCarryOver ? 0 : (event.start - chunkStartTime)
 
-      eventTimes.push(delay)
+      const t_start = event.isCarryOver ? 0 : delay
+      const t_end = Math.min(t_start + duration, actualChunkDuration)
+      const overall_t_start = chunkStartTime + t_start
+      const overall_t_end = chunkStartTime + t_end
+
+      const intensity_start = getIntensityAtTime(event.layer, overall_t_start)
+      const intensity_end = getIntensityAtTime(event.layer, overall_t_end)
+      const layerData = config.layers[event.layer]
+      const { lowerKey, upperKey, weight } = interpolateIntensity(layerData, intensity_start)
+      const volume_start = layerData.intensity[lowerKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
+      const volume_end = layerData.intensity[upperKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
+
+      eventTimes.push(t_start)
       timelineLogEntries.push({
         chunk: chunkIndex,
         startTime: event.start,
-        volume: event.volume * config.volume,
+        volume: `${volume_start} to ${volume_end}`,
         filename: event.filename,
         playCount: event.playCount,
         delay: delay * 1000,
@@ -72,22 +82,14 @@ export async function generateFilterComplex(
               3
             )}*c1[a${index}_pan]`
           : ''
-      const volumeFilter = `volume=${(
-        event.volume *
-        config.volume *
-        (event.dist ?? 1)
-      ).toFixed(3)}[a${index}]`
+      const volumeFilter = `volume='if(between(t,${t_start.toFixed(3)},${t_end.toFixed(3)}),${volume_start.toFixed(3)} + (${volume_end.toFixed(3)} - ${volume_start.toFixed(3)})*(t - ${t_start.toFixed(3)})/(${t_end.toFixed(3)} - ${t_start.toFixed(3)}),1)'[a${index}]`
       const formattedDelay = (delay * 1000).toFixed(6)
       const delayFilter = `adelay=${formattedDelay}|${formattedDelay}[a${index}_delay]`
-      const padFilter = `apad=whole_dur=${actualChunkDuration.toFixed(
-        6
-      )}[a${index}_pad]`
+      const padFilter = `apad=whole_dur=${actualChunkDuration.toFixed(6)}[a${index}_pad]`
 
       let currentInputLabel
       const chainParts = []
 
-      // Input stream is [index:a]
-      // Preprocessing
       if (preprocessFilter) {
         chainParts.push(`[${index}:a]${preprocessFilter}`)
         currentInputLabel = `a${index}_pre`
@@ -95,42 +97,33 @@ export async function generateFilterComplex(
         currentInputLabel = `${index}:a`
       }
 
-      // Format filter
       chainParts.push(`[${currentInputLabel}]${formatFilter}`)
       currentInputLabel = `a${index}_fmt`
 
-      // Delay filter
       chainParts.push(`[${currentInputLabel}]${delayFilter}`)
       currentInputLabel = `a${index}_delay`
 
-      // Pad filter to ensure the stream lasts for the whole chunk duration
       chainParts.push(`[${currentInputLabel}]${padFilter}`)
       currentInputLabel = `a${index}_pad`
 
-      // Pan filter
       if (panFilter) {
         chainParts.push(`[${currentInputLabel}]${panFilter}`)
         currentInputLabel = `a${index}_pan`
       }
 
-      // Pitch and speed adjustment
       if (event.pitchSpeedFactor && event.pitchSpeedFactor !== 1) {
         const pitchFactor = event.pitchSpeedFactor
-        const sampleRate = 44100 * pitchFactor // Assuming base sample rate is 44100
+        const sampleRate = 44100 * pitchFactor
         const pitchFilter = `asetrate=${sampleRate.toFixed(0)}[a${index}_pitch]`
         chainParts.push(`[${currentInputLabel}]${pitchFilter}`)
         currentInputLabel = `a${index}_pitch`
 
-        const tempoFilter = `atempo=${(1 / pitchFactor).toFixed(
-          3
-        )}[a${index}_tempo]`
+        const tempoFilter = `atempo=${(1 / pitchFactor).toFixed(3)}[a${index}_tempo]`
         chainParts.push(`[${currentInputLabel}]${tempoFilter}`)
         currentInputLabel = `a${index}_tempo`
       }
 
-      // Volume filter
       chainParts.push(`[${currentInputLabel}]${volumeFilter}`)
-      // Final output label for this event's chain is a${index}
 
       return chainParts.filter(Boolean).join(';')
     })
@@ -157,7 +150,8 @@ export async function processChunk(
   chunkStartTime,
   chunkEndTime,
   carryOverEvents = [],
-  config
+  config,
+  getIntensityAtTime
 ) {
   await ensureOutputDir()
   const tempFile = path.join(outputDir, `temp_chunk_${chunkIndex}.mp3`)
@@ -181,6 +175,7 @@ export async function processChunk(
             ...event,
             offset: (event.offset || 0) + durationInCurrentChunk,
             start: chunkEndTime,
+            isCarryOver: true,
           })
         }
 
@@ -197,26 +192,25 @@ export async function processChunk(
           chunkStartTime,
           config,
           chunkIndex,
-          actualChunkDuration
+          actualChunkDuration,
+          getIntensityAtTime
         )
       finalTimelineLog = timelineLogEntries
 
       if (!filterComplexString || eventTimes.length === 0) {
-        // Handle empty chunk (no valid filterable events)
         console.log(
           `Generating empty chunk ${chunkIndex} (no valid filterable events)`
         )
-        // Use anullsrc for silent audio generation
         const silentInput = [
           { path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] },
         ]
         await processAudioChunkCli(
           silentInput,
           tempFile,
-          null, // No complex filter needed for anullsrc
+          null,
           actualChunkDuration,
-          [], // No global input options for anullsrc
-          ['-ar', '44100', '-ac', '2'] // Output options
+          [],
+          ['-ar', '44100', '-ac', '2']
         )
       } else {
         await processAudioChunkCli(
@@ -224,8 +218,8 @@ export async function processChunk(
           tempFile,
           filterComplexString,
           actualChunkDuration,
-          ['-guess_layout_max', '0'], // Global input options
-          ['-map', '[a]', '-ar', '44100', '-ac', '2'] // Output options
+          ['-guess_layout_max', '0'],
+          ['-map', '[a]', '-ar', '44100', '-ac', '2']
         )
       }
 
@@ -235,7 +229,6 @@ export async function processChunk(
       )
       return { tempFile, timelineLog: finalTimelineLog, nextChunkEvents }
     } else {
-      // Handle empty chunk (no initial events)
       console.log(`Generating empty chunk ${chunkIndex} (no initial events)`)
       const silentInput = [
         { path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] },

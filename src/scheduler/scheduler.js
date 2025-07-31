@@ -79,7 +79,7 @@ function determineSetsToProcess(layerData, currentSetIndex) {
   const allSetKeys = Object.keys(layerData.sets)
   if (!allSetKeys || allSetKeys.length === 0) return []
 
-  if (layerData.cycleThrough === 'sets') {
+  if (layerData.cycleMode === 'sets') {
     if (allSetKeys.length > 0) {
       return [allSetKeys[currentSetIndex % allSetKeys.length]]
     }
@@ -96,11 +96,11 @@ export function generateTimelineEvents(
   lastPlayedFiles,
   setIndex,
   subBlockStartTime,
-  volume,
+  volume, // This is layer volume, will be overridden by set volume
   chunkCounts,
   durations,
   sharedPosition,
-  directSetFrequencies,
+  directSetFrequenciesAndVolumes,
   layerLastScheduledEventStartTimes,
   lastEventEndTimes,
   config
@@ -115,7 +115,7 @@ export function generateTimelineEvents(
     lastEventEndTimes[layerName] = {}
   }
 
-  if (layerData.cycleThrough === 'sets' && !layerData.bufferBetweenSounds) {
+  if (layerData.cycleMode === 'sets' && !layerData.bufferBetweenSounds) {
     const allSetKeys = Object.keys(layerData.sets)
     if (allSetKeys.length === 0) {
       console.warn(`No sets to process for layer ${layerName}`)
@@ -135,6 +135,9 @@ export function generateTimelineEvents(
         console.warn(`No valid files or duration data for set ${currentSet}`)
         break
       }
+
+      const setVolume = directSetFrequenciesAndVolumes[`${currentSet}_volume`] || layerData[`${currentSet}_volume`] || 1
+      const setVariance = layerData[`${currentSet}_variance`] || layerData.variance || 0
 
       const selectedFileDetails = selectAndPrepareFile(
         validFiles[currentSet],
@@ -164,7 +167,7 @@ export function generateTimelineEvents(
         selectedFileDetails.name,
         nextEventTime,
         selectedFileDetails.duration,
-        volume,
+        setVolume * config.volume,
         layerName,
         currentSet,
         position,
@@ -188,12 +191,11 @@ export function generateTimelineEvents(
       const nextIndex = (currentIndex + 1) % allSetKeys.length
       const nextSet = allSetKeys[nextIndex]
       const freqRate =
-        directSetFrequencies && directSetFrequencies[nextSet]
-          ? directSetFrequencies[nextSet]
-          : 0
+        directSetFrequenciesAndVolumes[`${nextSet}_frequency`] ||
+        layerData[`${nextSet}_frequency`] ||
+        0
       let interval = freqRate > 0 ? config.frequencyUnit / freqRate : 0
-      const varianceValue = layerData.variance || 0
-      const jitter = Math.random() * varianceValue
+      const jitter = Math.random() * setVariance
       interval = Math.max(0.001, interval + jitter)
 
       nextEventTime += interval
@@ -218,24 +220,25 @@ export function generateTimelineEvents(
         continue
       }
 
+      const setVolume = directSetFrequenciesAndVolumes[`${setName}_volume`] || layerData[`${setName}_volume`] || 1
+      const setVariance = layerData[`${setName}_variance`] || layerData.variance || 0
+      const frequencyValue = directSetFrequenciesAndVolumes[`${setName}_frequency`] || layerData[`${setName}_frequency`] || 0
+
       const position =
         layerData.directionality === 'unique'
           ? generatePosition()
           : sharedPosition ?? {}
       let currentFileCycleGlobalIndex = 0
-      if (layerData.cycleThrough === 'files') {
+      if (layerData.cycleMode === 'files') {
         currentFileCycleGlobalIndex = setIndex
       }
 
       let referenceTime
-      let frequencyValue
       let bufferTrackerKey = null
 
       if (layerData.bufferBetweenSounds) {
-        const varianceValue = layerData.variance || 0
         bufferTrackerKey =
-          layerData.cycleThrough === 'sets' ||
-          layerData.cycleThrough === 'files'
+          layerData.cycleMode === 'sets' || layerData.cycleMode === 'files'
             ? '_layerCycle'
             : setName
         if (!lastEventEndTimes[layerName][bufferTrackerKey]) {
@@ -243,26 +246,18 @@ export function generateTimelineEvents(
         }
         referenceTime = lastEventEndTimes[layerName][bufferTrackerKey]
 
-        const freqRate = directSetFrequencies
-          ? directSetFrequencies[setName]
-          : 0
-
-        if (freqRate < 0) {
+        if (frequencyValue < 0) {
           console.warn(
-            `Negative frequency rate (${freqRate}) for set ${setName} in layer ${layerName} (buffered mode). Skipping set.`
+            `Negative frequency rate (${frequencyValue}) for set ${setName} in layer ${layerName} (buffered mode). Skipping set.`
           )
           continue
-        } else if (freqRate === 0) {
-          frequencyValue = 0
-        } else {
-          frequencyValue = 1.0 / freqRate
         }
 
         let calculatedInterval
         if (frequencyValue === 0 && layerData.bufferBetweenSounds) {
-          calculatedInterval = Math.random() * varianceValue
+          calculatedInterval = Math.random() * setVariance
         } else {
-          calculatedInterval = frequencyValue + Math.random() * varianceValue
+          calculatedInterval = (1.0 / frequencyValue) + Math.random() * setVariance
         }
 
         calculatedInterval = Math.max(0.001, calculatedInterval)
@@ -281,7 +276,7 @@ export function generateTimelineEvents(
             validFiles[setName],
             playCounts[setName],
             lastPlayedFiles[setName],
-            layerData.cycleThrough === 'files',
+            layerData.cycleMode === 'files',
             currentFileCycleGlobalIndex,
             durations[setName],
             config.audioDir,
@@ -297,7 +292,7 @@ export function generateTimelineEvents(
               selectedFileDetails.name,
               potentialNextEventStartTime,
               selectedFileDetails.duration,
-              volume,
+              setVolume * config.volume,
               layerName,
               setName,
               position,
@@ -323,8 +318,8 @@ export function generateTimelineEvents(
             }
 
             if (
-              layerData.cycleThrough === 'sets' ||
-              layerData.cycleThrough === 'files'
+              layerData.cycleMode === 'sets' ||
+              layerData.cycleMode === 'files'
             ) {
               setToggled = true
             }
@@ -332,30 +327,23 @@ export function generateTimelineEvents(
         }
       } else {
         let actualLastStartTime =
-          layerLastScheduledEventStartTimes[layerName] &&
-          layerLastScheduledEventStartTimes[layerName][setName] !== undefined
-            ? layerLastScheduledEventStartTimes[layerName][setName]
-            : 0
+          layerLastScheduledEventStartTimes[layerName]?.[setName] ?? 0
 
-        const baseRate = directSetFrequencies
-          ? directSetFrequencies[setName]
-          : 0
-        if (baseRate <= 0) {
+        if (frequencyValue <= 0) {
           console.warn(
-            `Invalid or zero base rate (${baseRate}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`
+            `Invalid or zero base rate (${frequencyValue}) for set ${setName} in layer ${layerName} (non-buffered). Skipping set.`
           )
           continue
         }
-        const currentInterval = config.frequencyUnit / baseRate
-        const varianceValue = layerData.variance || 0
-        const jitter = Math.random() * varianceValue
+        const currentInterval = config.frequencyUnit / frequencyValue
+        const jitter = Math.random() * setVariance
         let effectiveInterval = currentInterval + jitter
         effectiveInterval = Math.max(0.001, effectiveInterval)
 
         let potentialEventStartTime = actualLastStartTime + effectiveInterval
         potentialEventStartTime = Math.max(0, potentialEventStartTime)
 
-        const tolerance = Math.max(0.001, varianceValue * 0.5)
+        const tolerance = Math.max(0.001, setVariance * 0.5)
         if (
           potentialEventStartTime >= subBlockStartTime - tolerance &&
           potentialEventStartTime <
@@ -374,7 +362,7 @@ export function generateTimelineEvents(
             validFiles[setName],
             playCounts[setName],
             lastPlayedFiles[setName],
-            layerData.cycleThrough === 'files',
+            layerData.cycleMode === 'files',
             currentFileCycleGlobalIndex,
             durations[setName],
             config.audioDir,
@@ -390,7 +378,7 @@ export function generateTimelineEvents(
               selectedFileDetails.name,
               adjustedStartTime,
               selectedFileDetails.duration,
-              volume,
+              setVolume * config.volume,
               layerName,
               setName,
               position,
@@ -415,8 +403,8 @@ export function generateTimelineEvents(
             }
 
             if (
-              layerData.cycleThrough === 'sets' ||
-              layerData.cycleThrough === 'files'
+              layerData.cycleMode === 'sets' ||
+              layerData.cycleMode === 'files'
             ) {
               setToggled = true
             }
