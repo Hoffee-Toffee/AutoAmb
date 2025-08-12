@@ -1,5 +1,5 @@
 import { generatePosition, selectFile } from '../utils/audio.js'
-import { randomNormal } from '../utils/math.js'
+import { getInterpolatedLayerData } from '../utils/intensity.js'
 import path from 'path'
 
 function createAudioEvent(
@@ -96,17 +96,83 @@ export function generateTimelineEvents(
   lastPlayedFiles,
   setIndex,
   subBlockStartTime,
-  volume, // This is layer volume, will be overridden by set volume
+  intensity,
   chunkCounts,
   durations,
   sharedPosition,
-  directSetFrequenciesAndVolumes,
   layerLastScheduledEventStartTimes,
   lastEventEndTimes,
   config
 ) {
   const events = []
   let setToggled = false
+
+  if (layerData.isConstant) {
+    for (const setName of Object.keys(layerData.sets)) {
+      if (!lastEventEndTimes[layerName]) {
+        lastEventEndTimes[layerName] = {}
+      }
+      if (!lastEventEndTimes[layerName][setName]) {
+        lastEventEndTimes[layerName][setName] = 0
+      }
+
+      if (subBlockStartTime >= lastEventEndTimes[layerName][setName]) {
+        const {
+          volume: setVolume,
+          pitchSpeedRange,
+          directionality,
+        } = getInterpolatedLayerData(layerData, intensity, setName)
+
+        const selectedFileDetails = selectAndPrepareFile(
+          validFiles[setName],
+          playCounts[setName],
+          lastPlayedFiles[setName],
+          false,
+          0,
+          durations[setName],
+          config.audioDir,
+          layerData.category
+        )
+
+        if (selectedFileDetails) {
+          const position =
+            directionality === 'unique'
+              ? generatePosition()
+              : sharedPosition ?? {}
+          const event = createAudioEvent(
+            selectedFileDetails.path,
+            selectedFileDetails.name,
+            subBlockStartTime,
+            selectedFileDetails.duration,
+            setVolume,
+            layerName,
+            setName,
+            position,
+            pitchSpeedRange
+          )
+          events.push(event)
+          lastEventEndTimes[layerName][setName] =
+            subBlockStartTime + selectedFileDetails.duration
+
+          const startChunk = Math.floor(subBlockStartTime / config.chunkDuration)
+          const endChunk = Math.floor(
+            (subBlockStartTime + selectedFileDetails.duration) /
+              config.chunkDuration
+          )
+          for (let i = startChunk; i <= endChunk; i++) {
+            if (
+              chunkCounts &&
+              chunkCounts[layerName] &&
+              i < chunkCounts[layerName].length
+            ) {
+              chunkCounts[layerName][i]++
+            }
+          }
+        }
+      }
+    }
+    return { events, setToggled: false }
+  }
 
   if (!layerLastScheduledEventStartTimes[layerName]) {
     layerLastScheduledEventStartTimes[layerName] = {}
@@ -136,8 +202,12 @@ export function generateTimelineEvents(
         break
       }
 
-      const setVolume = directSetFrequenciesAndVolumes[`${currentSet}_volume`] || layerData[`${currentSet}_volume`] || 1
-      const setVariance = layerData[`${currentSet}_variance`] || layerData.variance || 0
+      const {
+        volume: setVolume,
+        variance: setVariance,
+        pitchSpeedRange,
+        directionality,
+      } = getInterpolatedLayerData(layerData, intensity, currentSet)
 
       const selectedFileDetails = selectAndPrepareFile(
         validFiles[currentSet],
@@ -158,20 +228,18 @@ export function generateTimelineEvents(
       }
 
       const position =
-        layerData.directionality === 'unique'
-          ? generatePosition()
-          : sharedPosition ?? {}
+        directionality === 'unique' ? generatePosition() : sharedPosition ?? {}
 
       const event = createAudioEvent(
         selectedFileDetails.path,
         selectedFileDetails.name,
         nextEventTime,
         selectedFileDetails.duration,
-        setVolume * config.volume,
+        setVolume,
         layerName,
         currentSet,
         position,
-        layerData.pitchSpeedRange
+        pitchSpeedRange
       )
       events.push(event)
       lastPlayedFiles[currentSet] = selectedFileDetails.name
@@ -190,10 +258,11 @@ export function generateTimelineEvents(
       const currentIndex = allSetKeys.indexOf(currentSet)
       const nextIndex = (currentIndex + 1) % allSetKeys.length
       const nextSet = allSetKeys[nextIndex]
-      const freqRate =
-        directSetFrequenciesAndVolumes[`${nextSet}_frequency`] ||
-        layerData[`${nextSet}_frequency`] ||
-        0
+      const { frequency: freqRate } = getInterpolatedLayerData(
+        layerData,
+        intensity,
+        nextSet
+      )
       let interval = freqRate > 0 ? config.frequencyUnit / freqRate : 0
       const jitter = Math.random() * setVariance
       interval = Math.max(0.001, interval + jitter)
@@ -220,14 +289,16 @@ export function generateTimelineEvents(
         continue
       }
 
-      const setVolume = directSetFrequenciesAndVolumes[`${setName}_volume`] || layerData[`${setName}_volume`] || 1
-      const setVariance = layerData[`${setName}_variance`] || layerData.variance || 0
-      const frequencyValue = directSetFrequenciesAndVolumes[`${setName}_frequency`] || layerData[`${setName}_frequency`] || 0
+      const {
+        volume: setVolume,
+        variance: setVariance,
+        frequency: frequencyValue,
+        pitchSpeedRange,
+        directionality,
+      } = getInterpolatedLayerData(layerData, intensity, setName)
 
       const position =
-        layerData.directionality === 'unique'
-          ? generatePosition()
-          : sharedPosition ?? {}
+        directionality === 'unique' ? generatePosition() : sharedPosition ?? {}
       let currentFileCycleGlobalIndex = 0
       if (layerData.cycleMode === 'files') {
         currentFileCycleGlobalIndex = setIndex
@@ -257,7 +328,8 @@ export function generateTimelineEvents(
         if (frequencyValue === 0 && layerData.bufferBetweenSounds) {
           calculatedInterval = Math.random() * setVariance
         } else {
-          calculatedInterval = (1.0 / frequencyValue) + Math.random() * setVariance
+          calculatedInterval =
+            1.0 / frequencyValue + Math.random() * setVariance
         }
 
         calculatedInterval = Math.max(0.001, calculatedInterval)
@@ -292,11 +364,11 @@ export function generateTimelineEvents(
               selectedFileDetails.name,
               potentialNextEventStartTime,
               selectedFileDetails.duration,
-              setVolume * config.volume,
+              setVolume,
               layerName,
               setName,
               position,
-              layerData.pitchSpeedRange
+              pitchSpeedRange
             )
             events.push(event)
             lastPlayedFiles[setName] = selectedFileDetails.name
@@ -378,11 +450,11 @@ export function generateTimelineEvents(
               selectedFileDetails.name,
               adjustedStartTime,
               selectedFileDetails.duration,
-              setVolume * config.volume,
+              setVolume,
               layerName,
               setName,
               position,
-              layerData.pitchSpeedRange
+              pitchSpeedRange
             )
             events.push(event)
 

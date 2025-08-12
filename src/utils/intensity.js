@@ -1,8 +1,14 @@
-// Intensity and frequency calculation utility functions
 import { poissonRandom } from './math.js'
 
+export function getIntensityAtTime(layerName, time) {
+  const totalDuration = 15 * 4 * 5; // Match config.js duration
+  const progress = Math.min(1, Math.max(0, time / totalDuration));
+  // Constant intensity for debugging
+  return 2; // Fixed at max intensity for maximum volume
+}
+
 export function getIntensityForLayer(layerName, progress) {
-  return Math.min(2, progress * 2) // Example: 0 to 2.0
+  return 2;
 }
 
 export function interpolateIntensity(layerData, intensity) {
@@ -11,10 +17,10 @@ export function interpolateIntensity(layerData, intensity) {
     .sort((a, b) => a - b)
 
   let lowerKey = intensityKeys.findLast((key) => key <= intensity)
-  if (lowerKey === undefined) lowerKey = intensityKeys[0] // Default to the lowest if no key is <= intensity
+  if (lowerKey === undefined) lowerKey = intensityKeys[0]
 
   let upperKey = intensityKeys.find((key) => key > intensity)
-  if (upperKey === undefined) upperKey = lowerKey // If no key is > intensity, use lowerKey (or highest key)
+  if (upperKey === undefined) upperKey = lowerKey
 
   const weight =
     lowerKey === upperKey ? 0 : (intensity - lowerKey) / (upperKey - lowerKey)
@@ -22,56 +28,126 @@ export function interpolateIntensity(layerData, intensity) {
   return { lowerKey, upperKey, weight }
 }
 
+export function getLayerProperty(
+  layerData,
+  intensityKey,
+  setName,
+  propertyName
+) {
+  const intensityLevel = layerData.intensity[intensityKey]
+  if (!intensityLevel) return layerData[propertyName]
+
+  const setSpecificProperty = `${setName}_${propertyName}`
+  if (intensityLevel[setSpecificProperty] !== undefined) {
+    return intensityLevel[setSpecificProperty]
+  }
+  if (intensityLevel[propertyName] !== undefined) {
+    return intensityLevel[propertyName]
+  }
+  if (layerData[setSpecificProperty] !== undefined) {
+    return layerData[setSpecificProperty]
+  }
+  return layerData[propertyName]
+}
+
+export function getInterpolatedValue(
+  layerData,
+  setName,
+  propertyName,
+  { lowerKey, upperKey, weight }
+) {
+  const lowerValue = getLayerProperty(
+    layerData,
+    lowerKey,
+    setName,
+    propertyName
+  )
+  const upperValue = getLayerProperty(
+    layerData,
+    upperKey,
+    setName,
+    propertyName
+  )
+
+  if (typeof lowerValue === 'number' && typeof upperValue === 'number') {
+    return (1 - weight) * lowerValue + weight * upperValue
+  }
+  return lowerValue ?? upperValue
+}
+
+export function getInterpolatedLayerData(layerData, intensity, setName) {
+  const { lowerKey, upperKey, weight } = interpolateIntensity(
+    layerData,
+    intensity
+  )
+  const interpolationArgs = { lowerKey, upperKey, weight }
+
+  const volume = getInterpolatedValue(
+    layerData,
+    setName,
+    'volume',
+    interpolationArgs
+  )
+  const frequency = getInterpolatedValue(
+    layerData,
+    setName,
+    'frequency',
+    interpolationArgs
+  )
+  const variance = getInterpolatedValue(
+    layerData,
+    setName,
+    'variance',
+    interpolationArgs
+  )
+  const directionality = getInterpolatedValue(
+    layerData,
+    setName,
+    'directionality',
+    interpolationArgs
+  )
+  const pitchSpeedRange = getInterpolatedValue(
+    layerData,
+    setName,
+    'pitchSpeedRange',
+    interpolationArgs
+  )
+
+  return {
+    volume,
+    frequency,
+    variance,
+    directionality,
+    pitchSpeedRange,
+  }
+}
+
 export function calculateFrequenciesAndCounts(
   layerData,
   intensity,
-  lowerKey,
-  upperKey,
   config
 ) {
   const sets = Object.keys(layerData.sets)
-  const frequencies = {} // Actual event frequencies (e.g., events per second)
-  const scaledFrequencies = {} // Frequencies scaled by scheduleGranularity for direct use in poisson/counts
-  const counts = {} // Target number of events in a sub-block, if using variance
-
-  const weight =
-    lowerKey === upperKey ? 0 : (intensity - lowerKey) / (upperKey - lowerKey)
+  const frequencies = {}
+  const scaledFrequencies = {}
+  const counts = {}
 
   for (const set of sets) {
-    const frequencyKey = `${set}_frequency`
+    const data = getInterpolatedLayerData(layerData, intensity, set)
+    const baseFrequency = data.frequency || layerData.frequency || 0
+    const variance = data.variance
 
-    // Determine base frequency for the set from intensity keyframes
-    // Fallback: set-specific frequency -> general frequency for the keyframe -> layer's base frequency
-    const lowerFrequency =
-      layerData.intensity[lowerKey][frequencyKey] ??
-      layerData.intensity[lowerKey].frequency ??
-      layerData.frequency
-    const upperFrequency =
-      layerData.intensity[upperKey][frequencyKey] ??
-      layerData.intensity[upperKey].frequency ??
-      layerData.frequency
-
-    // Interpolate the base frequency
-    const baseFrequency =
-      (1 - weight) * lowerFrequency + weight * upperFrequency
-
-    // Store the direct frequency (events per frequencyUnit, e.g., per minute)
     frequencies[set] = baseFrequency
 
-    // Scaled frequency: events per scheduleGranularity (e.g., events per second if scheduleGranularity is 1)
-    // This is what's often used for Poisson distribution or direct event counts in a sub-block.
     const freqPerScheduleUnit =
       baseFrequency * (config.scheduleGranularity / config.frequencyUnit)
     scaledFrequencies[
       `scaled${set.charAt(0).toUpperCase() + set.slice(1)}Frequency`
     ] = freqPerScheduleUnit
 
-    // Unified calculation for counts
-    // Ensure freqPerScheduleUnit is not negative before sqrt or poissonRandom
     const safeFreqPerScheduleUnit = Math.max(0, freqPerScheduleUnit)
-
     const stdDev = Math.sqrt(safeFreqPerScheduleUnit)
-    const rangeDelta = (layerData.variance || 0) * stdDev // Use (layerData.variance || 0) to default undefined to 0
+    const rangeDelta = (variance || 0) * stdDev
 
     const minN = Math.max(0, Math.floor(safeFreqPerScheduleUnit - rangeDelta))
     const maxN = Math.ceil(safeFreqPerScheduleUnit + rangeDelta)

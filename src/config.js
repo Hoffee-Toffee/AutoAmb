@@ -16,7 +16,6 @@ export default {
   },
   layers: {
     mus: {
-      isConstant: true,
       category: 'mus',
       volume: 1,
       sets: {
@@ -27,8 +26,15 @@ export default {
       },
       intensity: {
         0: {
-          '0_volume': 0.5,
+          '0_volume': 2,
           '1_volume': 0,
+          '2_volume': 0,
+          '3_volume': 0,
+          volume: 1,
+        },
+        1.5: {
+          '0_volume': 2,
+          '1_volume': 2,
           '2_volume': 0,
           '3_volume': 0,
           volume: 1,

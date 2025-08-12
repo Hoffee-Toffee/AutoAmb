@@ -8,12 +8,12 @@ import {
   normalizeSets,
 } from './utils/audio.js'
 import {
-  interpolateIntensity,
   calculateFrequenciesAndCounts,
+  getInterpolatedLayerData,
 } from './utils/intensity.js'
 import { PerfLog, logPerformanceSummary } from './utils/logging.js'
 import { generateTimelineEvents } from './scheduler/scheduler.js'
-import { processChunk } from './processor/chunkProcessor.js'
+import { processChunk } from './processor/chunkProcessor.js' // Fixed import
 import { concatenateChunks } from './processor/chunkJoiner.js'
 import {
   initializeDirector,
@@ -39,10 +39,11 @@ async function main() {
   ].join('')
 
   console.log(message)
-  await generateSoundscape(mainConfig.config, mainConfig.layers, isPlanOnly)
+  await generateSoundscape(mainConfig, isPlanOnly)
 }
 
-async function generateSoundscape(config, layers, isPlanOnly = false) {
+async function generateSoundscape(mainConfig, isPlanOnly = false) {
+  const { config, layers } = mainConfig
   const perfLog = new PerfLog()
   try {
     const filesData = {}
@@ -104,22 +105,11 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           layerName,
           subBlockStartTime
         )
-        const { lowerKey, upperKey, weight } = interpolateIntensity(
-          layerData,
-          intensity
-        )
-        const volume =
-          (1 - weight) * layerData.intensity[lowerKey].volume +
-          weight * layerData.intensity[upperKey].volume
 
         const { frequencies, scaledFrequencies, counts } =
-          calculateFrequenciesAndCounts(
-            layerData,
-            intensity,
-            lowerKey,
-            upperKey,
-            config
-          )
+          calculateFrequenciesAndCounts(layerData, intensity, config)
+
+        const { volume } = getInterpolatedLayerData(layerData, intensity)
 
         intensityLog.push({
           subBlock: i,
@@ -132,12 +122,6 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           volume,
         })
 
-        const frequenciesAndVolumes = {}
-        for (const setName of Object.keys(layerData.sets)) {
-          frequenciesAndVolumes[`${setName}_frequency`] = frequencies[`${setName}_frequency`]
-          frequenciesAndVolumes[`${setName}_volume`] = layerData.intensity[lowerKey][`${setName}_volume`] || layerData[`${setName}_volume`] || 1
-        }
-
         const { events, setToggled } = generateTimelineEvents(
           layerName,
           layerData,
@@ -146,11 +130,10 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           filesData[layerName].lastPlayedFiles,
           setIndices[layerName],
           subBlockStartTime,
-          volume,
+          intensity,
           chunkCounts,
           filesData[layerName].durations,
           sharedPositions[layerName],
-          frequenciesAndVolumes,
           layerLastScheduledEventStartTimes,
           lastEventEndTimes,
           config,
@@ -163,14 +146,16 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
           switch (layerData.cycleMode) {
             case 'sets':
               setIndices[layerName] =
-                (setIndices[layerName] + 1) % Object.keys(layerData.sets).length
+                (setIndices[layerName] + 1) %
+                Object.keys(layerData.sets).length
               break
             case 'files':
               const totalFiles = Object.values(
                 filesData[layerName].validFiles
               ).reduce((sum, files) => sum + files.length, 0)
               if (totalFiles > 0) {
-                setIndices[layerName] = (setIndices[layerName] + 1) % totalFiles
+                setIndices[layerName] =
+                  (setIndices[layerName] + 1) % totalFiles
               }
               break
           }
@@ -190,7 +175,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
 
     const getIntensityAtTime = (layerName, time) => {
       const relevantEntries = intensityLog.filter(
-        entry => entry.layer === layerName && entry.time <= time
+        (entry) => entry.layer === layerName && entry.time <= time
       )
       if (relevantEntries.length === 0) return 0
       const latestEntry = relevantEntries.reduce((prev, current) =>
@@ -234,7 +219,8 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
 
       timeline = timeline.filter(
         (event) =>
-          event && (event.start < chunkStartTime || event.start >= chunkEndTime)
+          event &&
+          (event.start < chunkStartTime || event.start >= chunkEndTime)
       )
 
       console.log(
@@ -250,7 +236,7 @@ async function generateSoundscape(config, layers, isPlanOnly = false) {
         chunkStartTime,
         chunkEndTime,
         carryOverEvents,
-        config,
+        mainConfig,
         getIntensityAtTime
       )
       if (tempFile) tempFiles.push(tempFile)
