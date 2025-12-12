@@ -1,14 +1,19 @@
 import { poissonRandom } from './math.js'
 
-export function getIntensityAtTime(layerName, time) {
-  const totalDuration = 15 * 4 * 5; // Match config.js duration
-  const progress = Math.min(1, Math.max(0, time / totalDuration));
-  // Constant intensity for debugging
-  return 2; // Fixed at max intensity for maximum volume
+export function getIntensityAtTime(layerName, time, intensityLog) {
+  const relevantEntries = intensityLog.filter(
+    (entry) => entry.layer === layerName && entry.time <= time
+  )
+  if (relevantEntries.length === 0) return 0
+  const latestEntry = relevantEntries.reduce((prev, current) =>
+    prev.time > current.time ? prev : current
+  )
+  return latestEntry.intensity
 }
 
 export function getIntensityForLayer(layerName, progress) {
-  return 2;
+  // For now, we'll use a simple linear progression of intensity from 0 to 2.
+  return Math.min(2, progress * 2)
 }
 
 export function interpolateIntensity(layerData, intensity) {
@@ -122,11 +127,7 @@ export function getInterpolatedLayerData(layerData, intensity, setName) {
   }
 }
 
-export function calculateFrequenciesAndCounts(
-  layerData,
-  intensity,
-  config
-) {
+export function calculateFrequenciesAndCounts(layerData, intensity, config) {
   const sets = Object.keys(layerData.sets)
   const frequencies = {}
   const scaledFrequencies = {}

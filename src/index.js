@@ -24,7 +24,17 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+function sanitizePath(p) {
+  if (/^[a-zA-Z]:\\/.test(p)) {
+    return p.replace(/^[a-zA-Z]:/, '').replace(/\\/g, '/')
+  }
+  return p
+}
+
 async function main() {
+  if (mainConfig.config && mainConfig.config.audioDir) {
+    mainConfig.config.audioDir = sanitizePath(mainConfig.config.audioDir)
+  }
   const isPlanOnly = process.argv.includes('--plan-only')
   const dashPad = '-'.repeat(5)
   const pad = ' '.repeat(2)
@@ -137,7 +147,7 @@ async function generateSoundscape(mainConfig, isPlanOnly = false) {
           layerLastScheduledEventStartTimes,
           lastEventEndTimes,
           config,
-          layerNextEventTimes
+          intensityLog
         )
 
         timeline.push(...events)
@@ -172,17 +182,6 @@ async function generateSoundscape(mainConfig, isPlanOnly = false) {
       path.join(outDir, 'intensity_log.json'),
       JSON.stringify(intensityLog, null, 2)
     )
-
-    const getIntensityAtTime = (layerName, time) => {
-      const relevantEntries = intensityLog.filter(
-        (entry) => entry.layer === layerName && entry.time <= time
-      )
-      if (relevantEntries.length === 0) return 0
-      const latestEntry = relevantEntries.reduce((prev, current) =>
-        prev.time > current.time ? prev : current
-      )
-      return latestEntry.intensity
-    }
 
     if (isPlanOnly) {
       const timelineLog = timeline.map((event) => ({
@@ -236,8 +235,7 @@ async function generateSoundscape(mainConfig, isPlanOnly = false) {
         chunkStartTime,
         chunkEndTime,
         carryOverEvents,
-        mainConfig,
-        getIntensityAtTime
+        mainConfig
       )
       if (tempFile) tempFiles.push(tempFile)
       timelineLog.push(...chunkTimelineLog)

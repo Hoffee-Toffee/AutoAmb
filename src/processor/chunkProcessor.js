@@ -21,8 +21,7 @@ export async function generateFilterComplex(
   chunkStartTime,
   config,
   chunkIndex,
-  actualChunkDuration,
-  getIntensityAtTime
+  actualChunkDuration
 ) {
   const eventTimes = []
   const timelineLogEntries = []
@@ -35,15 +34,9 @@ export async function generateFilterComplex(
 
       const t_start = event.isCarryOver ? 0 : delay
       const t_end = Math.min(t_start + duration, actualChunkDuration)
-      const overall_t_start = chunkStartTime + t_start
-      const overall_t_end = chunkStartTime + t_end
 
-      const intensity_start = getIntensityAtTime(event.layer, overall_t_start)
-      const intensity_end = getIntensityAtTime(event.layer, overall_t_end)
-      const layerData = config.layers[event.layer]
-      const { lowerKey, upperKey, weight } = interpolateIntensity(layerData, intensity_start)
-      const volume_start = layerData.intensity[lowerKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
-      const volume_end = layerData.intensity[upperKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
+      const volume_start = event.startVolume
+      const volume_end = event.endVolume
 
       eventTimes.push(t_start)
       timelineLogEntries.push({
@@ -132,7 +125,7 @@ export async function generateFilterComplex(
   const filterChainString = filters.join(';')
   const mixInputs = eventTimes.map((_, index) => `[a${index}]`).join('')
   const mixFilter = `${mixInputs}amix=inputs=${eventTimes.length}:duration=longest[amixed]`
-  const finalVolumeFilter = `[amixed]volume=${config.volume}[a]`
+  const finalVolumeFilter = `[amixed]volume=${config.config.volume}[a]`
 
   const fullFilterComplex = [filterChainString, mixFilter, finalVolumeFilter]
     .filter(Boolean)
@@ -150,8 +143,7 @@ export async function processChunk(
   chunkStartTime,
   chunkEndTime,
   carryOverEvents = [],
-  config,
-  getIntensityAtTime
+  config
 ) {
   await ensureOutputDir()
   const tempFile = path.join(outputDir, `temp_chunk_${chunkIndex}.mp3`)
@@ -192,8 +184,7 @@ export async function processChunk(
           chunkStartTime,
           config,
           chunkIndex,
-          actualChunkDuration,
-          getIntensityAtTime
+          actualChunkDuration
         )
       finalTimelineLog = timelineLogEntries
 
