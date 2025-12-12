@@ -1,0 +1,12 @@
+{
+  "chunkTest": {
+    "input": "test input data",
+    "expectedOutput": "test output data"
+  },
+  "scheduleTest": {
+    "schedule": [
+      {"time": 0, "event": "start"},
+      {"time": 10, "event": "stop"}
+    ]
+  }
+}

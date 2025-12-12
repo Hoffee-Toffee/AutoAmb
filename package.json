@@ -18,7 +18,8 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
-    "chalk": "^5.4.1"
+    "chalk": "^5.4.1",
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.18",
