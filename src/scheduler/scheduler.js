@@ -1,5 +1,8 @@
 import { generatePosition, selectFile } from '../utils/audio.js'
-import { getInterpolatedLayerData } from '../utils/intensity.js'
+import {
+  getInterpolatedLayerData,
+  getIntensityAtTime,
+} from '../utils/intensity.js'
 import path from 'path'
 
 function createAudioEvent(
@@ -7,7 +10,8 @@ function createAudioEvent(
   fileName,
   startTime,
   duration,
-  volume,
+  startVolume,
+  endVolume,
   layerName,
   setName,
   position,
@@ -18,7 +22,8 @@ function createAudioEvent(
     filename: fileName,
     start: startTime,
     duration: duration,
-    volume,
+    startVolume,
+    endVolume,
     set: setName,
     layer: layerName,
     ...position,
@@ -79,13 +84,45 @@ function determineSetsToProcess(layerData, currentSetIndex) {
   const allSetKeys = Object.keys(layerData.sets)
   if (!allSetKeys || allSetKeys.length === 0) return []
 
-  if (layerData.cycleMode === 'sets') {
+  if (
+    layerData.cycleMode === 'sets' ||
+    (layerData.bufferBetweenSounds && !layerData.cycleMode)
+  ) {
     if (allSetKeys.length > 0) {
       return [allSetKeys[currentSetIndex % allSetKeys.length]]
     }
     return []
   }
   return allSetKeys
+}
+
+function calculateDynamicVolumes(
+  startTime,
+  duration,
+  layerName,
+  setName,
+  layerData,
+  config,
+  intensityLog
+) {
+  const endTime = startTime + duration
+  const startIntensity = getIntensityAtTime(
+    layerName,
+    startTime,
+    intensityLog
+  )
+  const endIntensity = getIntensityAtTime(layerName, endTime, intensityLog)
+  const { volume: startVolume } = getInterpolatedLayerData(
+    layerData,
+    startIntensity,
+    setName
+  )
+  const { volume: endVolume } = getInterpolatedLayerData(
+    layerData,
+    endIntensity,
+    setName
+  )
+  return { startVolume, endVolume }
 }
 
 export function generateTimelineEvents(
@@ -102,7 +139,8 @@ export function generateTimelineEvents(
   sharedPosition,
   layerLastScheduledEventStartTimes,
   lastEventEndTimes,
-  config
+  config,
+  intensityLog
 ) {
   const events = []
   let setToggled = false
@@ -117,11 +155,11 @@ export function generateTimelineEvents(
       }
 
       if (subBlockStartTime >= lastEventEndTimes[layerName][setName]) {
-        const {
-          volume: setVolume,
-          pitchSpeedRange,
-          directionality,
-        } = getInterpolatedLayerData(layerData, intensity, setName)
+        const { pitchSpeedRange, directionality } = getInterpolatedLayerData(
+          layerData,
+          intensity,
+          setName
+        )
 
         const selectedFileDetails = selectAndPrepareFile(
           validFiles[setName],
@@ -135,6 +173,16 @@ export function generateTimelineEvents(
         )
 
         if (selectedFileDetails) {
+          const { startVolume, endVolume } = calculateDynamicVolumes(
+            subBlockStartTime,
+            selectedFileDetails.duration,
+            layerName,
+            setName,
+            layerData,
+            config,
+            intensityLog
+          )
+
           const position =
             directionality === 'unique'
               ? generatePosition()
@@ -144,7 +192,8 @@ export function generateTimelineEvents(
             selectedFileDetails.name,
             subBlockStartTime,
             selectedFileDetails.duration,
-            setVolume,
+            startVolume,
+            endVolume,
             layerName,
             setName,
             position,
@@ -203,7 +252,6 @@ export function generateTimelineEvents(
       }
 
       const {
-        volume: setVolume,
         variance: setVariance,
         pitchSpeedRange,
         directionality,
@@ -227,6 +275,16 @@ export function generateTimelineEvents(
         break
       }
 
+      const { startVolume, endVolume } = calculateDynamicVolumes(
+        nextEventTime,
+        selectedFileDetails.duration,
+        layerName,
+        currentSet,
+        layerData,
+        config,
+        intensityLog
+      )
+
       const position =
         directionality === 'unique' ? generatePosition() : sharedPosition ?? {}
 
@@ -235,7 +293,8 @@ export function generateTimelineEvents(
         selectedFileDetails.name,
         nextEventTime,
         selectedFileDetails.duration,
-        setVolume,
+        startVolume,
+            endVolume,
         layerName,
         currentSet,
         position,
@@ -290,7 +349,6 @@ export function generateTimelineEvents(
       }
 
       const {
-        volume: setVolume,
         variance: setVariance,
         frequency: frequencyValue,
         pitchSpeedRange,
@@ -309,7 +367,9 @@ export function generateTimelineEvents(
 
       if (layerData.bufferBetweenSounds) {
         bufferTrackerKey =
-          layerData.cycleMode === 'sets' || layerData.cycleMode === 'files'
+          layerData.cycleMode === 'sets' ||
+          layerData.cycleMode === 'files' ||
+          (layerData.bufferBetweenSounds && Object.keys(layerData.sets).length > 1)
             ? '_layerCycle'
             : setName
         if (!lastEventEndTimes[layerName][bufferTrackerKey]) {
@@ -359,12 +419,23 @@ export function generateTimelineEvents(
             selectedFileDetails &&
             potentialNextEventStartTime < config.duration
           ) {
+            const { startVolume, endVolume } = calculateDynamicVolumes(
+              potentialNextEventStartTime,
+              selectedFileDetails.duration,
+              layerName,
+              setName,
+              layerData,
+              config,
+              intensityLog
+            )
+
             const event = createAudioEvent(
               selectedFileDetails.path,
               selectedFileDetails.name,
               potentialNextEventStartTime,
               selectedFileDetails.duration,
-              setVolume,
+              startVolume,
+              endVolume,
               layerName,
               setName,
               position,
@@ -391,7 +462,8 @@ export function generateTimelineEvents(
 
             if (
               layerData.cycleMode === 'sets' ||
-              layerData.cycleMode === 'files'
+              layerData.cycleMode === 'files' ||
+              (layerData.bufferBetweenSounds && !layerData.cycleMode)
             ) {
               setToggled = true
             }
@@ -445,12 +517,22 @@ export function generateTimelineEvents(
             selectedFileDetails &&
             adjustedStartTime + selectedFileDetails.duration <= config.duration
           ) {
+            const { startVolume, endVolume } = calculateDynamicVolumes(
+              adjustedStartTime,
+              selectedFileDetails.duration,
+              layerName,
+              setName,
+              layerData,
+              config,
+              intensityLog
+            )
             const event = createAudioEvent(
               selectedFileDetails.path,
               selectedFileDetails.name,
               adjustedStartTime,
               selectedFileDetails.duration,
-              setVolume,
+              startVolume,
+              endVolume,
               layerName,
               setName,
               position,
@@ -476,7 +558,8 @@ export function generateTimelineEvents(
 
             if (
               layerData.cycleMode === 'sets' ||
-              layerData.cycleMode === 'files'
+              layerData.cycleMode === 'files' ||
+              (layerData.bufferBetweenSounds && !layerData.cycleMode)
             ) {
               setToggled = true
             }

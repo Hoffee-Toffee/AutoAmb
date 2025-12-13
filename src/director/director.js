@@ -67,12 +67,9 @@ export function getIntensity(layers, activeLayers, layerName, time) {
 
   const { activationTime, duration } = layerState
   const layerProgress = (time - activationTime) / duration
+  const progress = Math.max(0, Math.min(1, layerProgress))
 
-  if (layerProgress <= 0.5) {
-    return layerProgress * 4
-  } else {
-    return (1 - layerProgress) * 4
-  }
+  return Math.min(2, progress * 2)
 }
 
 export function getActiveLayers(activeLayers) {

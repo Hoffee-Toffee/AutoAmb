@@ -24,7 +24,17 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+function sanitizePath(p) {
+  if (/^[a-zA-Z]:\\/.test(p)) {
+    return p.replace(/^[a-zA-Z]:/, '').replace(/\\/g, '/')
+  }
+  return p
+}
+
 async function main() {
+  if (mainConfig.config && mainConfig.config.audioDir) {
+    mainConfig.config.audioDir = sanitizePath(mainConfig.config.audioDir)
+  }
   const isPlanOnly = process.argv.includes('--plan-only')
   const dashPad = '-'.repeat(5)
   const pad = ' '.repeat(2)
@@ -137,7 +147,7 @@ async function generateSoundscape(mainConfig, isPlanOnly = false) {
           layerLastScheduledEventStartTimes,
           lastEventEndTimes,
           config,
-          layerNextEventTimes
+          intensityLog
         )
 
         timeline.push(...events)

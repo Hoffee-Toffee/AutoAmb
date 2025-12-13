@@ -37,6 +37,7 @@ export async function generateFilterComplex(
 
       const t_start = event.isCarryOver ? 0 : delay
       const t_end = Math.min(t_start + duration, actualChunkDuration)
+
       const overall_t_start = chunkStartTime + t_start
       const overall_t_end = chunkStartTime + t_end
 
