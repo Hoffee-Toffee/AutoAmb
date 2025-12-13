@@ -181,7 +181,7 @@ async function generateSoundscape(mainConfig, isPlanOnly = false) {
       const latestEntry = relevantEntries.reduce((prev, current) =>
         prev.time > current.time ? prev : current
       )
-      return latestEntry.intensity
+      return 0.5
     }
 
     if (isPlanOnly) {

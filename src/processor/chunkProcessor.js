@@ -1,8 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+
 import { getAudioDuration, getAudioChannels } from '../utils/audio.js'
 import { processAudioChunk as processAudioChunkCli } from '../utils/ffmpeg.js'
+import { interpolateIntensity } from '../utils/intensity.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const outputDir = path.join(__dirname, '../../out')
@@ -42,8 +44,14 @@ export async function generateFilterComplex(
       const intensity_end = getIntensityAtTime(event.layer, overall_t_end)
       const layerData = config.layers[event.layer]
       const { lowerKey, upperKey, weight } = interpolateIntensity(layerData, intensity_start)
-      const volume_start = layerData.intensity[lowerKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
-      const volume_end = layerData.intensity[upperKey][`${event.set}_volume`] || layerData[`${event.set}_volume`] || 1
+
+      let volume_start = layerData.intensity[lowerKey][`${event.set}_volume`]
+      if (typeof volume_start !== 'number' || isNaN(volume_start)) volume_start = layerData[`${event.set}_volume`]
+      if (typeof volume_start !== 'number' || isNaN(volume_start)) volume_start = 1
+
+      let volume_end = layerData.intensity[upperKey][`${event.set}_volume`]
+      if (typeof volume_end !== 'number' || isNaN(volume_end)) volume_end = layerData[`${event.set}_volume`]
+      if (typeof volume_end !== 'number' || isNaN(volume_end)) volume_end = 1
 
       eventTimes.push(t_start)
       timelineLogEntries.push({
@@ -132,7 +140,9 @@ export async function generateFilterComplex(
   const filterChainString = filters.join(';')
   const mixInputs = eventTimes.map((_, index) => `[a${index}]`).join('')
   const mixFilter = `${mixInputs}amix=inputs=${eventTimes.length}:duration=longest[amixed]`
-  const finalVolumeFilter = `[amixed]volume=${config.volume}[a]`
+  const finalVolume = (typeof config.volume === 'number' && !isNaN(config.volume)) ? config.volume : 1;
+  // Add loudnorm after final volume for consistent loudness per chunk
+  const finalVolumeFilter = `[amixed]volume=${finalVolume},loudnorm=I=-16:TP=-1.5:LRA=11[a]`
 
   const fullFilterComplex = [filterChainString, mixFilter, finalVolumeFilter]
     .filter(Boolean)
@@ -164,16 +174,21 @@ export async function processChunk(
       const inputs = []
       let finalTimelineLog = []
 
+
       for (const event of allEvents) {
         const duration = event.duration ?? (await getAudioDuration(event.file))
         const eventEndTime = event.start + duration - (event.offset || 0)
 
         if (eventEndTime > chunkEndTime) {
-          const durationInCurrentChunk =
-            chunkEndTime - event.start + (event.offset || 0)
+          const durationInCurrentChunk = chunkEndTime - event.start + (event.offset || 0)
+          const carryOverOffset = (event.offset || 0) + durationInCurrentChunk;
+          // Debug log for carry-over event
+          console.log(
+            `[CarryOver] chunk ${chunkIndex} | file: ${event.file} | origStart: ${event.start} | origOffset: ${event.offset || 0} | duration: ${duration} | eventEndTime: ${eventEndTime} | chunkEnd: ${chunkEndTime} | durationInChunk: ${durationInCurrentChunk} | nextOffset: ${carryOverOffset}`
+          );
           nextChunkEvents.push({
             ...event,
-            offset: (event.offset || 0) + durationInCurrentChunk,
+            offset: carryOverOffset,
             start: chunkEndTime,
             isCarryOver: true,
           })
@@ -198,9 +213,7 @@ export async function processChunk(
       finalTimelineLog = timelineLogEntries
 
       if (!filterComplexString || eventTimes.length === 0) {
-        console.log(
-          `Generating empty chunk ${chunkIndex} (no valid filterable events)`
-        )
+        console.log(`Chunk ${chunkIndex}: empty`)
         const silentInput = [
           { path: 'anullsrc=r=44100:cl=stereo', options: ['-f', 'lavfi'] },
         ]
@@ -224,9 +237,7 @@ export async function processChunk(
       }
 
       const stats = await fs.stat(tempFile)
-      console.log(
-        `Chunk ${chunkIndex} processed: ${tempFile}, size: ${stats.size} bytes`
-      )
+      console.log(`Chunk ${chunkIndex}: ${eventTimes.length} events, ${stats.size} bytes`)
       return { tempFile, timelineLog: finalTimelineLog, nextChunkEvents }
     } else {
       console.log(`Generating empty chunk ${chunkIndex} (no initial events)`)

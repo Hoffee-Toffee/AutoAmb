@@ -1,10 +1,13 @@
 import { spawn } from 'child_process'
-// import ffmpegPathInstaller from '@ffmpeg-installer/ffmpeg'
-// import ffprobePathInstaller from '@ffprobe-installer/ffprobe'
 
-// import ffmpegPath from 'ffmpeg-static'
-const ffmpegPath = 'C:\\Users\\Admin\\Downloads\\FFmpeg\\bin\\ffmpeg.exe'
-const ffprobePath = 'C:\\Users\\Admin\\Downloads\\FFmpeg\\bin\\ffprobe.exe'
+// Use system ffmpeg/ffprobe on Linux/macOS, fallback to Windows path if on Windows
+import os from 'os';
+let ffmpegPath = 'ffmpeg';
+let ffprobePath = 'ffprobe';
+if (process.platform === 'win32') {
+  ffmpegPath = 'C:\\Users\\Admin\\Downloads\\FFmpeg\\bin\\ffmpeg.exe';
+  ffprobePath = 'C:\\Users\\Admin\\Downloads\\FFmpeg\\bin\\ffprobe.exe';
+}
 
 /**
  * Executes a spawned process and returns a promise.

@@ -1,14 +1,14 @@
 import { poissonRandom } from './math.js'
 
 export function getIntensityAtTime(layerName, time) {
-  const totalDuration = 15 * 4 * 5; // Match config.js duration
+  const totalDuration = 15 * 1 * 5; // Match config.js duration
   const progress = Math.min(1, Math.max(0, time / totalDuration));
-  // Constant intensity for debugging
-  return 2; // Fixed at max intensity for maximum volume
+  return getIntensityForLayer(layerName, progress);
 }
 
 export function getIntensityForLayer(layerName, progress) {
-  return 2;
+  // Start at 0.5, ramp to 2.0 at the end
+  return 0.5 + 1.5 * progress;
 }
 
 export function interpolateIntensity(layerData, intensity) {
